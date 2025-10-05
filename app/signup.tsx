@@ -1,109 +1,108 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-} from "react-native";
-import { auth } from "../firebaseConfig";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { auth, db } from "../firebaseConfig";
+import { doc, setDoc } from "firebase/firestore";
 
-export default function SignupScreen() {
+export default function Signup() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"customer" | "provider" | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
+    if (!email || !password || !role) {
+      Alert.alert("Error", "Please fill all fields and select role");
       return;
     }
 
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Save role & email to Firestore (basic info)
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        role: role,
+        isProfileComplete: false, // ✅ flag to check if they finished profile form
+      });
 
       setLoading(false);
-      Alert.alert("Success", "Account created successfully!", [
-        {
-          text: "OK",
-          onPress: () => router.replace("/selectUserType"), // ✅ redirect
-        },
-      ]);
-    } catch (error) {
+      Alert.alert("Success", "Account created successfully!");
+
+      // Go to Profile Completion page
+      if (role === "customer") {
+        router.replace("/customer/completeProfile");
+      } else {
+        router.replace("/service_provider/completeProfile");
+      }
+      
+    } catch (error: any) {
       setLoading(false);
-      const errorMessage =
-        error instanceof Error ? error.message : "Signup failed.";
-      Alert.alert("Signup Error", errorMessage);
+      console.error("Signup error:", error);
+      Alert.alert("Error", error.message);
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* App Branding Header */}
-      <Text style={styles.brand}>Fixian.</Text>
-      <Text style={styles.welcome}>Create an Account</Text>
-      <Text style={styles.subtitle}>
-        Everything You Need, One Tap Away!
-      </Text>
+    <View className="flex-1 bg-black justify-center items-center px-6">
+      <Text className="text-white text-2xl font-bold mb-8">Create Account</Text>
 
-      {/* Input Fields */}
       <TextInput
-        style={styles.input}
         placeholder="Email"
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor="#999"
         value={email}
         onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
+        className="bg-white w-full p-4 rounded-lg mb-4 text-black"
       />
+
       <TextInput
-        style={styles.input}
         placeholder="Password"
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor="#999"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
+        className="bg-white w-full p-4 rounded-lg mb-4 text-black"
       />
 
-      {/* Signup Button */}
-      <TouchableOpacity
-        style={[styles.button, loading && { backgroundColor: "#93C5FD" }]}
-        onPress={handleSignup}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? "Signing up..." : "Sign Up"}
-        </Text>
-      </TouchableOpacity>
+      {/* Role Selection */}
+      <View className="flex-row justify-between w-full mb-6">
+        <TouchableOpacity
+          onPress={() => setRole("customer")}
+          className={`flex-1 py-3 mr-2 rounded-lg ${
+            role === "customer" ? "bg-white" : "bg-gray-700"
+          }`}
+        >
+          <Text className={`text-center ${role === "customer" ? "text-black" : "text-white"}`}>
+            Customer
+          </Text>
+        </TouchableOpacity>
 
-      {/* Already have account */}
-      <TouchableOpacity
-        style={styles.loginLink}
-        onPress={() => router.push("/login")}
-      >
-        <Text style={styles.loginText}>
-          Already have an account?{" "}
-          <Text style={styles.loginBold}>Login</Text>
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setRole("provider")}
+          className={`flex-1 py-3 ml-2 rounded-lg ${
+            role === "provider" ? "bg-white" : "bg-gray-700"
+          }`}
+        >
+          <Text className={`text-center ${role === "provider" ? "text-black" : "text-white"}`}>
+            Provider
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#fff" />
+      ) : (
+        <TouchableOpacity
+          onPress={handleSignup}
+          className="bg-white w-full py-4 rounded-full"
+        >
+          <Text className="text-black text-center text-lg font-semibold">Sign Up</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20, backgroundColor: "#fff" },
-  brand: { fontSize: 32, fontWeight: "bold", color: "#2563EB", marginBottom: 6 }, // Fixian. Blue
-  welcome: { fontSize: 24, fontWeight: "bold", color: "#000", marginBottom: 4 },
-  subtitle: { fontSize: 14, color: "#4B5563", marginBottom: 20 },
-  input: { width: "100%", borderWidth: 1, borderColor: "#D1D5DB", padding: 12, marginBottom: 12, borderRadius: 8, fontSize: 16 },
-  button: { width: "100%", backgroundColor: "#2563EB", padding: 15, borderRadius: 8, marginTop: 10 },
-  buttonText: { color: "#fff", textAlign: "center", fontWeight: "bold", fontSize: 16 },
-  loginLink: { marginTop: 20 },
-  loginText: { color: "#4B5563", fontSize: 14 },
-  loginBold: { color: "#2563EB", fontWeight: "bold" },
-});
