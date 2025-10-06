@@ -56,7 +56,7 @@ export default function ProviderCompleteProfile() {
 
       setLoading(false);
       Alert.alert("Success", "Profile completed successfully!");
-      router.replace("/providerDashboard");
+      router.replace("./");
     } catch (error) {
       console.error("Error saving profile:", error);
       Alert.alert("Error", "Failed to save profile");

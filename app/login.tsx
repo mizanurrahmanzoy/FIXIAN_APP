@@ -8,51 +8,43 @@ import { doc, getDoc } from "firebase/firestore";
 
 export default function LoginScreen() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [userType, setUserType] = useState<"customer" | "provider" | "">("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please enter both email and password");
+    if (!email || !password || !userType) {
+      Alert.alert("Error", "Please fill all fields and select user type");
       return;
     }
 
     setLoading(true);
-
     try {
       // Firebase Auth login
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // Determine the correct collection
+      const collectionName = userType === "customer" ? "customers" : "ServiceProviders";
+
       // Fetch user document from Firestore
-      const userDocRef = doc(db, "users", user.uid);
+      const userDocRef = doc(db, collectionName, user.uid);
       const userDocSnap = await getDoc(userDocRef);
 
       setLoading(false);
 
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
+      if (!userDocSnap.exists()) {
+        Alert.alert("Error", `${userType === "customer" ? "Customer" : "Provider"} data not found`);
+        return;
+      }
 
-        if (!userData.role) {
-          // No role yet → redirect to selectUserType.tsx
-          router.push({
-            pathname: "/selectUserType",
-            params: { userId: user.uid },
-          });
-        } else if (userData.role === "customer") {
-          router.push("/customerDashboard");
-        } else if (userData.role === "provider") {
-          router.push("/providerDashboard");
-        } else {
-          Alert.alert("Error", "Invalid role detected");
-        }
+      // Redirect to respective dashboard
+      if (userType === "customer") {
+        router.replace("./customer/dashboard");
       } else {
-        Alert.alert("Error", "User data not found in Firestore");
+        router.replace("./service_provider/dashboard");
       }
     } catch (error) {
       setLoading(false);
@@ -61,14 +53,9 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    console.log("Google Sign-In pressed");
-    // TODO: integrate Firebase Google auth here if needed
-  };
-
   return (
     <View className="flex-1 bg-black px-6 justify-center">
-      <Text className="text-white text-3xl font-bold mb-8">
+      <Text className="text-white text-3xl font-bold mb-8 text-center">
         Welcome Back 👋
       </Text>
 
@@ -90,8 +77,33 @@ export default function LoginScreen() {
         secureTextEntry
         value={password}
         onChangeText={setPassword}
-        className="bg-gray-900 text-white px-4 py-3 rounded-lg mb-6"
+        className="bg-gray-900 text-white px-4 py-3 rounded-lg mb-4"
       />
+
+      {/* User Type Selection */}
+      <View className="flex-row justify-around mb-6">
+        <TouchableOpacity
+          onPress={() => setUserType("customer")}
+          className={`py-3 px-6 rounded-full ${
+            userType === "customer" ? "bg-white" : "bg-gray-700"
+          }`}
+        >
+          <Text className={`${userType === "customer" ? "text-black" : "text-white"} font-semibold`}>
+            Customer
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setUserType("provider")}
+          className={`py-3 px-6 rounded-full ${
+            userType === "provider" ? "bg-white" : "bg-gray-700"
+          }`}
+        >
+          <Text className={`${userType === "provider" ? "text-black" : "text-white"} font-semibold`}>
+            Service Provider
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Login Button */}
       <TouchableOpacity
@@ -106,7 +118,7 @@ export default function LoginScreen() {
 
       {/* Google Sign In */}
       <TouchableOpacity
-        onPress={handleGoogleSignIn}
+        onPress={() => console.log("Google Sign-In")}
         className="flex-row items-center justify-center border border-gray-400 py-3 rounded-full mb-6"
       >
         <Ionicons name="logo-google" size={20} color="white" />
@@ -114,10 +126,7 @@ export default function LoginScreen() {
       </TouchableOpacity>
 
       {/* Navigate to Signup */}
-      <TouchableOpacity
-        onPress={() => router.push("/signup")}
-        className="self-center mt-4"
-      >
+      <TouchableOpacity onPress={() => router.push("/signup")} className="self-center mt-4">
         <Text className="text-gray-300 text-center">
           Don’t have an account?{" "}
           <Text className="text-white font-semibold">Sign up</Text>
