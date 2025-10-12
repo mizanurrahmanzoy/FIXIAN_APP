@@ -1,85 +1,196 @@
-import React from "react";
-import { View, Text, TouchableOpacity, Image, ScrollView } from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function Home() {
   const router = useRouter();
 
   return (
-    <ScrollView className="flex-1 bg-black">
+    <ScrollView style={styles.container}>
       {/* Welcome Screen */}
-      <View className="flex-1 items-center justify-center h-screen bg-black px-6">
-        <Text className="text-white text-4xl font-bold mb-2">Fixian</Text>
-        <Text className="text-gray-300 text-center mb-8">
+      <View style={styles.welcomeSection}>
+        <Text style={styles.title}>Fixian</Text>
+        <Text style={styles.subtitle}>
           An Intelligent Service Booking{"\n"}and Management System
         </Text>
         <TouchableOpacity
-          className="bg-white px-6 py-3 rounded-full flex-row items-center"
-          onPress={() => router.push("/login")}
+          style={styles.primaryButton}
+          onPress={() => router.push("./login")}
         >
-          <Text className="text-black font-semibold">Get Started</Text>
-          
-          <Ionicons name="arrow-forward" size={20} color="black" className="ml-2" />
+          <Text style={styles.primaryButtonText}>Get Started</Text>
+          <Ionicons name="arrow-forward" size={20} color="black" style={styles.iconRight} />
         </TouchableOpacity>
       </View>
 
       {/* Mission & Vision Screen */}
-      <View className="flex-1 bg-black px-6 py-10">
-        <Text className="text-white text-2xl font-bold mb-6">
+      <View style={styles.missionSection}>
+        <Text style={styles.sectionTitle}>
           Connecting You to{"\n"}Trusted Experts
         </Text>
 
-        <View className="mb-6">
+        <View style={styles.imageContainer}>
           <Image
-            source={{ uri: "https://via.placeholder.com/300x200.png" }} // replace with real image
-            className="w-full h-40 rounded-lg"
+            source={{ uri: "https://via.placeholder.com/300x200.png" }}
+            style={styles.image}
             resizeMode="cover"
           />
-          <Text className="absolute top-2 left-2 bg-white px-3 py-1 rounded-full text-xs font-semibold">
-            Expert Service
-          </Text>
+          <Text style={styles.imageLabel}>Expert Service</Text>
         </View>
 
-        <Text className="text-gray-300 mb-8 leading-6">
-          At <Text className="text-white font-bold">Fixian</Text>, we believe everyone deserves
-          reliable, professional service. Our intelligent platform connects you
-          with verified technicians who can handle everything from AC repairs to
-          computer fixes and automotive services.
+        <Text style={styles.description}>
+          At <Text style={styles.boldText}>Fixian</Text>, we believe everyone deserves reliable,
+          professional service. Our intelligent platform connects you with verified technicians who
+          can handle everything from AC repairs to computer fixes and automotive services.
         </Text>
 
         {/* Features List */}
-        <View className="mb-4 flex-row items-start">
-          <Ionicons name="checkmark-circle" size={20} color="white" className="mr-2" />
-          <Text className="text-gray-200">
-            <Text className="text-white font-semibold">Expert Technicians{"\n"}</Text>
+        <View style={styles.featureItem}>
+          <Ionicons name="checkmark-circle" size={20} color="white" style={styles.featureIcon} />
+          <Text style={styles.featureText}>
+            <Text style={styles.featureTitle}>Expert Technicians{"\n"}</Text>
             Verified professionals with proven track records
           </Text>
         </View>
 
-        <View className="mb-4 flex-row items-start">
-          <Ionicons name="time" size={20} color="white" className="mr-2" />
-          <Text className="text-gray-200">
-            <Text className="text-white font-semibold">Quick Booking{"\n"}</Text>
+        <View style={styles.featureItem}>
+          <Ionicons name="time" size={20} color="white" style={styles.featureIcon} />
+          <Text style={styles.featureText}>
+            <Text style={styles.featureTitle}>Quick Booking{"\n"}</Text>
             Schedule services that fit your timeline
           </Text>
         </View>
 
-        <View className="mb-6 flex-row items-start">
-          <Ionicons name="shield-checkmark" size={20} color="white" className="mr-2" />
-          <Text className="text-gray-200">
-            <Text className="text-white font-semibold">Guaranteed Quality{"\n"}</Text>
+        <View style={styles.featureItem}>
+          <Ionicons name="shield-checkmark" size={20} color="white" style={styles.featureIcon} />
+          <Text style={styles.featureText}>
+            <Text style={styles.featureTitle}>Guaranteed Quality{"\n"}</Text>
             Protected service with satisfaction guarantee
           </Text>
         </View>
 
         {/* Start Journey Button */}
-        <TouchableOpacity
-          className="bg-white px-6 py-3 rounded-full flex-row items-center self-start">
-          <Text className="text-black font-semibold">Start Your Journey</Text>
-          <Ionicons name="arrow-forward" size={20} color="black" className="ml-2" />
+        <TouchableOpacity style={styles.secondaryButton}>
+          <Text style={styles.secondaryButtonText}>Start Your Journey</Text>
+          <Ionicons name="arrow-forward" size={20} color="black" style={styles.iconRight} />
         </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  welcomeSection: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 700,
+    backgroundColor: "#000",
+    paddingHorizontal: 24,
+  },
+  title: {
+    color: "#fff",
+    fontSize: 36,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  subtitle: {
+    color: "#ccc",
+    textAlign: "center",
+    marginBottom: 24,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  primaryButton: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 9999,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  primaryButtonText: {
+    color: "#000",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  iconRight: {
+    marginLeft: 8,
+  },
+  missionSection: {
+    flex: 1,
+    backgroundColor: "#000",
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  sectionTitle: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 24,
+  },
+  imageContainer: {
+    marginBottom: 24,
+  },
+  image: {
+    width: "100%",
+    height: 160,
+    borderRadius: 12,
+  },
+  imageLabel: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 9999,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  description: {
+    color: "#ccc",
+    marginBottom: 32,
+    lineHeight: 22,
+    fontSize: 15,
+  },
+  boldText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  featureIcon: {
+    marginRight: 8,
+  },
+  featureText: {
+    color: "#ccc",
+    fontSize: 14,
+    flex: 1,
+  },
+  featureTitle: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  secondaryButton: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 9999,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+  },
+  secondaryButtonText: {
+    color: "#000",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+});

@@ -1,107 +1,158 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image } from "react-native";
+// app/chat/ChatRoom.tsx
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+} from "react-native";
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "../../firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function ChatScreen() {
-  const [messages, setMessages] = useState([
-    { id: 1, sender: "other", text: "Hi, my living room lights keep flickering. Can you check what's wrong?" },
-    { id: 2, sender: "me", text: "Sure, let me take a look. How long has this been happening?" },
-    { id: 3, sender: "other", text: "For about a week. Sometimes the lights go dim and then brighten again." },
-    { id: 4, sender: "me", text: "Sounds like it could be a loose connection or an issue with the switch. I'll test the wiring first." },
-    { id: 5, sender: "other", text: "ok" },
-  ]);
+interface Message {
+  id: string;
+  text: string;
+  senderId: string;
+  createdAt: any;
+}
+
+export default function ChatRoom({ route, navigation }: any) {
+  const chatId = route?.params?.chatId;
+  const participantIds = route?.params?.participantIds; // optional, in case you need for display
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const flatListRef = useRef<FlatList>(null);
+
+  const user = auth.currentUser;
+
+  useEffect(() => {
+    if (!chatId) return;
+
+    const messagesRef = collection(db, "Chats", chatId, "messages");
+    const q = query(messagesRef, orderBy("createdAt", "asc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs: Message[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as any),
+      }));
+      setMessages(msgs);
+
+      // Scroll to bottom
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    });
+
+    return () => unsubscribe();
+  }, [chatId]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !chatId || !user) return;
+
+    const messagesRef = collection(db, "Chats", chatId, "messages");
+
+    try {
+      await addDoc(messagesRef, {
+        text: input.trim(),
+        senderId: user.uid,
+        createdAt: serverTimestamp(),
+      });
+      setInput("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
+
+  if (!chatId) {
+    return (
+      <View style={styles.center}>
+        <Text>No chat selected.</Text>
+      </View>
+    );
+  }
+
+  const renderItem = ({ item }: { item: Message }) => {
+    const isMe = item.senderId === user?.uid;
+    return (
+      <View
+        style={[
+          styles.messageContainer,
+          isMe ? styles.myMessage : styles.otherMessage,
+        ]}
+      >
+        <Text style={styles.messageText}>{item.text}</Text>
+      </View>
+    );
+  };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Image source={{ uri: "https://i.pravatar.cc/100" }} style={styles.avatar} />
-          <View>
-            <Text style={styles.name}>Mizanur Rahaman</Text>
-            <Text style={styles.active}>Active 11m ago</Text>
-          </View>
-        </View>
-        <View style={{ flexDirection: "row" }}>
-          <Ionicons name="call-outline" size={22} color="#000" style={{ marginRight: 15 }} />
-          <Ionicons name="videocam-outline" size={22} color="#000" />
-        </View>
-      </View>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#f4f4f4" }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={90}
+    >
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: 10 }}
+      />
 
-      {/* Messages */}
-      <ScrollView style={styles.chatArea} showsVerticalScrollIndicator={false}>
-        {messages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.message,
-              msg.sender === "me" ? styles.me : styles.other,
-            ]}
-          >
-            <Text style={{ color: msg.sender === "me" ? "#fff" : "#000" }}>{msg.text}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* Input */}
-      <View style={styles.inputArea}>
-        <TextInput placeholder="Message..." style={styles.input} />
-        <TouchableOpacity style={styles.sendBtn}>
-          <Ionicons name="send" size={20} color="#fff" />
+      <View style={styles.inputContainer}>
+        <TextInput
+          placeholder="Type a message..."
+          value={input}
+          onChangeText={setInput}
+          style={styles.input}
+        />
+        <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
+          <Ionicons name="send" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
-  name: { fontSize: 16, fontWeight: "600" },
-  active: { fontSize: 12, color: "gray" },
-  chatArea: { padding: 10 },
-  message: {
-    maxWidth: "70%",
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  messageContainer: {
+    maxWidth: "80%",
     padding: 10,
-    borderRadius: 15,
+    borderRadius: 12,
     marginVertical: 5,
   },
-  me: {
-    backgroundColor: "#007bff",
-    alignSelf: "flex-end",
-    borderBottomRightRadius: 0,
-  },
-  other: {
-    backgroundColor: "#f0f0f0",
-    alignSelf: "flex-start",
-    borderBottomLeftRadius: 0,
-  },
-  inputArea: {
+  myMessage: { backgroundColor: "#007bff", alignSelf: "flex-end" },
+  otherMessage: { backgroundColor: "#ccc", alignSelf: "flex-start" },
+  messageText: { color: "#fff" },
+  inputContainer: {
     flexDirection: "row",
     padding: 10,
     borderTopWidth: 1,
-    borderTopColor: "#eee",
-    alignItems: "center",
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
   },
   input: {
     flex: 1,
-    backgroundColor: "#f6f6f6",
-    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 25,
     paddingHorizontal: 15,
     paddingVertical: 8,
+    marginRight: 10,
+    backgroundColor: "#f9f9f9",
   },
-  sendBtn: {
+  sendButton: {
     backgroundColor: "#007bff",
-    borderRadius: 20,
+    borderRadius: 25,
     padding: 10,
-    marginLeft: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

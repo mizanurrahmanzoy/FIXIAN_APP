@@ -58,7 +58,7 @@ export default function CustomerCompleteProfile() {
 
       setLoading(false);
       Alert.alert("Success", "Profile completed successfully!");
-      router.replace("/customerDashboard");
+      router.replace("/customer/dashboard");
     } catch (error) {
       console.error("Error saving profile:", error);
       Alert.alert("Error", "Failed to save profile");

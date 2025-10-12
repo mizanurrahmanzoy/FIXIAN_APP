@@ -8,7 +8,7 @@ export default function BottomNav({ activeTab = "Dashboard" }) {
 
   const tabs = [
     { name: "Dashboard", icon: "home", route: "./dashboard" },
-    { name: "Jobs", icon: "briefcase-outline", route: "./jobs" },
+    { name: "My Services", icon: "briefcase-outline", route: "./add_service" },
     { name: "Message", icon: "chatbubble-outline", route: "./chats" },
     { name: "Profile", icon: "person-outline", route: "./profile" },
   ];

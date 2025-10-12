@@ -1,11 +1,27 @@
 // app/customer/profile.tsx
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  SafeAreaView,
+  Modal,
+} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { auth, db } from "../../firebaseConfig";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import BottomNav from "./BottomNav";
+
+import MapView, { Marker } from "react-native-maps";
+import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 
 export default function CustomerProfile() {
   const router = useRouter();
@@ -19,8 +35,9 @@ export default function CustomerProfile() {
   const [loading, setLoading] = useState(false);
   const [loadingImage, setLoadingImage] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
 
-  // Fetch customer data from Firestore
+  // Fetch customer profile
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
@@ -32,17 +49,56 @@ export default function CustomerProfile() {
           setName(data.name || "");
           setPhone(data.phone || "");
           setLocation(data.location || null);
-          setProfileImage(data.profileImage || null); // optional stored locally only
+          setProfileImage(data.profileImage || null);
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
       }
     };
-
     fetchProfile();
   }, []);
 
-  // Handle profile save
+  // Upload profile image
+  const handleUploadImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Permission required", "Access to gallery is required!");
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.7,
+      });
+
+      if (pickerResult.canceled || !pickerResult.assets?.length) return;
+
+      setLoadingImage(true);
+
+      const localUri = pickerResult.assets[0].uri;
+      const response = await fetch(localUri);
+      const blob = await response.blob();
+
+      const storage = getStorage();
+      const imageRef = ref(storage, `profileImages/${user?.uid}-${Date.now()}`);
+      await uploadBytes(imageRef, blob);
+
+      const downloadURL = await getDownloadURL(imageRef);
+      setProfileImage(downloadURL);
+
+      await updateDoc(doc(db, "customers", user!.uid), { profileImage: downloadURL });
+
+      setLoadingImage(false);
+      Alert.alert("Success", "Profile image uploaded successfully!");
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      setLoadingImage(false);
+      Alert.alert("Error", "Failed to upload profile image");
+    }
+  };
+
+  // Save profile
   const handleSaveProfile = async () => {
     if (!user) return;
     if (!name || !phone) {
@@ -68,153 +124,166 @@ export default function CustomerProfile() {
     }
   };
 
-  // Handle profile image upload (stored locally, not Firestore)
-  const handleUploadImage = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert("Permission required", "Permission to access gallery is required!");
-        return;
-      }
+  const handleLogout = () => {
+    auth.signOut();
+    router.replace("/login");
+  };
 
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.7,
-      });
-
-      if (pickerResult.canceled || !pickerResult.assets?.length) return;
-
-      setLoadingImage(true);
-      setProfileImage(pickerResult.assets[0].uri);
-      setLoadingImage(false);
-      Alert.alert("Success", "Profile image selected!");
-    } catch (error) {
-      console.error("Error selecting image:", error);
-      setLoadingImage(false);
-      Alert.alert("Error", "Failed to select image");
-    }
+  const renderLocation = () => {
+    if (!location) return "Not set";
+    const parts = [
+      location.district,
+      location.city,
+      location.thana,
+      location.union,
+      location.village,
+    ].filter(Boolean);
+    return parts.join(", ") || "Not set";
   };
 
   return (
-    <>
-    <ScrollView className="flex-1 bg-white p-6">
-      <Text className="text-2xl font-bold mb-6">Customer Profile</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f9f9f9" }}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>Customer Profile</Text>
 
-      {/* Profile Image */}
-      <TouchableOpacity onPress={editMode ? handleUploadImage : undefined} className="self-center mb-6">
-        {loadingImage ? (
-          <ActivityIndicator size="large" color="#000" />
-        ) : profileImage ? (
-          <Image source={{ uri: profileImage }} className="w-32 h-32 rounded-full" />
-        ) : (
-          <View className="w-32 h-32 bg-gray-200 rounded-full justify-center items-center">
-            <Text className="text-gray-500">Upload Image</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      {/* Edit Mode Toggle */}
-      <TouchableOpacity
-        onPress={() => setEditMode(!editMode)}
-        className="bg-black py-2 px-4 rounded mb-6 self-center"
-      >
-        <Text className="text-white font-semibold">{editMode ? "Cancel Edit" : "Edit Profile"}</Text>
-      </TouchableOpacity>
-
-      {/* Name */}
-      <Text className="text-gray-600 font-semibold">Name</Text>
-      <TextInput
-        placeholder="Full Name"
-        placeholderTextColor="#aaa"
-        value={name}
-        onChangeText={setName}
-        editable={editMode}
-        className="bg-gray-100 w-full p-4 rounded-lg mb-3"
-      />
-
-      {/* Email (read-only) */}
-      <Text className="text-gray-600 font-semibold">Email</Text>
-      <TextInput
-        value={email}
-        editable={false}
-        className="bg-gray-200 w-full p-4 rounded-lg mb-3 text-gray-700"
-      />
-
-      {/* Phone */}
-      <Text className="text-gray-600 font-semibold">Phone</Text>
-      <TextInput
-        placeholder="Phone"
-        placeholderTextColor="#aaa"
-        value={phone}
-        onChangeText={setPhone}
-        editable={editMode}
-        keyboardType="phone-pad"
-        className="bg-gray-100 w-full p-4 rounded-lg mb-3"
-      />
-
-      {/* Location */}
-      <Text className="text-gray-600 font-semibold">Location</Text>
-      {editMode ? (
-        <>
-          <TextInput
-            placeholder="District"
-            placeholderTextColor="#aaa"
-            value={location?.district || ""}
-            onChangeText={(text) => setLocation({ ...location, district: text })}
-            className="bg-gray-100 w-full p-4 rounded-lg mb-2"
-          />
-          <TextInput
-            placeholder="City"
-            placeholderTextColor="#aaa"
-            value={location?.city || ""}
-            onChangeText={(text) => setLocation({ ...location, city: text })}
-            className="bg-gray-100 w-full p-4 rounded-lg mb-2"
-          />
-          <TextInput
-            placeholder="Thana"
-            placeholderTextColor="#aaa"
-            value={location?.thana || ""}
-            onChangeText={(text) => setLocation({ ...location, thana: text })}
-            className="bg-gray-100 w-full p-4 rounded-lg mb-2"
-          />
-          <TextInput
-            placeholder="Union/Ward"
-            placeholderTextColor="#aaa"
-            value={location?.union || ""}
-            onChangeText={(text) => setLocation({ ...location, union: text })}
-            className="bg-gray-100 w-full p-4 rounded-lg mb-2"
-          />
-          <TextInput
-            placeholder="Village/Town"
-            placeholderTextColor="#aaa"
-            value={location?.village || ""}
-            onChangeText={(text) => setLocation({ ...location, village: text })}
-            className="bg-gray-100 w-full p-4 rounded-lg mb-4"
-          />
-        </>
-      ) : (
-        <Text className="text-black text-lg mb-4">
-          {location
-            ? `${location.district || ""}, ${location.city || ""}, ${location.thana || ""}, ${location.union || ""}, ${location.village || ""}`
-            : "Not set"}
-        </Text>
-      )}
-
-      {/* Save Button */}
-      {editMode && (
+        {/* Profile Image */}
         <TouchableOpacity
-          onPress={handleSaveProfile}
-          className="bg-black w-full py-4 rounded-lg mb-6"
+          onPress={editMode ? handleUploadImage : undefined}
+          style={styles.imageContainer}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
+          {loadingImage ? (
+            <ActivityIndicator size="large" color="#000" />
+          ) : profileImage ? (
+            <Image source={{ uri: profileImage }} style={styles.profileImage} />
           ) : (
-            <Text className="text-white text-center font-semibold">Save Changes</Text>
+            <View style={styles.uploadPlaceholder}>
+              <Text style={styles.uploadText}>Upload Image</Text>
+            </View>
           )}
         </TouchableOpacity>
-      )}
-    </ScrollView>
-    <BottomNav activeTab="profile" />
-    </>
+
+        {/* Edit toggle */}
+        <TouchableOpacity onPress={() => setEditMode(!editMode)} style={styles.editButton}>
+          <Text style={styles.editButtonText}>{editMode ? "Cancel Edit" : "Edit Profile"}</Text>
+        </TouchableOpacity>
+
+        {/* Name */}
+        <Text style={styles.label}>Name</Text>
+        <TextInput
+          placeholder="Full Name"
+          placeholderTextColor="#aaa"
+          value={name}
+          onChangeText={setName}
+          editable={editMode}
+          style={[styles.input, !editMode && styles.readOnlyInput]}
+        />
+
+        {/* Email */}
+        <Text style={styles.label}>Email</Text>
+        <TextInput value={email} editable={false} style={[styles.input, styles.readOnlyInput]} />
+
+        {/* Phone */}
+        <Text style={styles.label}>Phone</Text>
+        <TextInput
+          placeholder="Phone"
+          placeholderTextColor="#aaa"
+          value={phone}
+          onChangeText={setPhone}
+          editable={editMode}
+          keyboardType="phone-pad"
+          style={[styles.input, !editMode && styles.readOnlyInput]}
+        />
+
+        {/* Location */}
+        <Text style={styles.label}>Location</Text>
+        {editMode ? (
+          <TouchableOpacity
+            onPress={() => setMapModalVisible(true)}
+            style={[styles.input, { justifyContent: "center" }]}
+          >
+            <Text style={{ color: location ? "#000" : "#aaa" }}>
+              {location ? renderLocation() : "Select Location"}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.locationText}>{renderLocation()}</Text>
+        )}
+
+        {/* Save button */}
+        {editMode && (
+          <TouchableOpacity onPress={handleSaveProfile} style={styles.saveButton}>
+            {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveButtonText}>Save Changes</Text>}
+          </TouchableOpacity>
+        )}
+
+        {/* Extra options */}
+        <View style={{ marginTop: 30 }}>
+          <TouchableOpacity onPress={() => router.push("./privacy-policy")} style={styles.optionButton}>
+            <Text style={styles.optionText}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout} style={[styles.optionButton, { backgroundColor: "#e74c3c" }]}>
+            <Text style={[styles.optionText, { color: "#fff" }]}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      <BottomNav activeTab="profile" />
+
+      {/* Map Modal */}
+      <Modal visible={mapModalVisible} animationType="slide">
+        <View style={{ flex: 1 }}>
+          <GooglePlacesAutocomplete
+            placeholder="Search"
+            onPress={(data, details = null) => {
+              // Extract location details from Google Place
+              const loc = {
+                district: details?.address_components.find(c => c.types.includes("administrative_area_level_2"))?.long_name || "",
+                city: details?.address_components.find(c => c.types.includes("locality"))?.long_name || "",
+                thana: "",
+                union: "",
+                village: "",
+                latitude: details?.geometry.location.lat,
+                longitude: details?.geometry.location.lng,
+              };
+              setLocation(loc);
+              setMapModalVisible(false);
+            }}
+            query={{
+              key: "YOUR_GOOGLE_MAPS_API_KEY",
+              language: "en",
+            }}
+            fetchDetails={true}
+            styles={{
+              container: { flex: 1 },
+              listView: { backgroundColor: "#fff" },
+            }}
+          />
+          <TouchableOpacity onPress={() => setMapModalVisible(false)} style={{ padding: 15, backgroundColor: "#000" }}>
+            <Text style={{ color: "#fff", textAlign: "center" }}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 50 },
+  title: { fontSize: 22, fontWeight: "700", marginBottom: 20, color: "#000" },
+  imageContainer: { alignSelf: "center", marginBottom: 20 },
+  profileImage: { width: 128, height: 128, borderRadius: 64 },
+  uploadPlaceholder: { width: 128, height: 128, borderRadius: 64, backgroundColor: "#e5e5e5", alignItems: "center", justifyContent: "center" },
+  uploadText: { color: "#666" },
+  editButton: { backgroundColor: "#000", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignSelf: "center", marginBottom: 20 },
+  editButtonText: { color: "#fff", fontWeight: "600" },
+  label: { color: "#555", fontWeight: "600", marginBottom: 6 },
+  input: { backgroundColor: "#f2f2f2", padding: 14, borderRadius: 8, marginBottom: 12, fontSize: 16 },
+  readOnlyInput: { backgroundColor: "#e0e0e0", color: "#555" },
+  locationText: { fontSize: 16, color: "#000", marginBottom: 16 },
+  saveButton: { backgroundColor: "#000", paddingVertical: 16, borderRadius: 8, marginBottom: 20 },
+  saveButtonText: { color: "#fff", textAlign: "center", fontWeight: "600", fontSize: 16 },
+  optionButton: { padding: 15, backgroundColor: "#f2f2f2", borderRadius: 8, marginBottom: 12 },
+  optionText: { fontSize: 16, color: "#000", fontWeight: "500" },
+});

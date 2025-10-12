@@ -1,3 +1,4 @@
+// app/customer/CustomerDashboard.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -8,17 +9,16 @@ import {
   Image,
   FlatList,
   Alert,
+  StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import BottomNav from "./BottomNav";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { db } from "../../firebaseConfig";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
-import { Route } from "expo-router/build/Route";
-import { useRouter } from "expo-router";
-const router = useRouter();
+import BottomNav from "./BottomNav";
+import { StatusBar } from "expo-status-bar";
 
-
-// Static categories
 const categories = [
   { name: "Electrician", icon: require("../../assets/electrician.png") },
   { name: "Plumber", icon: require("../../assets/plumber.png") },
@@ -28,12 +28,10 @@ const categories = [
   { name: "Cleaner", icon: require("../../assets/cleaner.png") },
 ];
 
-// Static best services
 const bestServices = [
   {
     name: "Complete electric supply wiring",
     price: 180,
-    oldPrice: 150,
     reviews: 130,
     provider: "Mizanur Rahman",
     image: require("../../assets/service1.jpg"),
@@ -41,7 +39,6 @@ const bestServices = [
   {
     name: "AC Installation & Repair",
     price: 120,
-    oldPrice: 100,
     reviews: 80,
     provider: "Nadia Akter",
     image: require("../../assets/service2.jpg"),
@@ -49,6 +46,7 @@ const bestServices = [
 ];
 
 export default function CustomerDashboard() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<any[]>([]);
 
   // Fetch jobs from Firestore
@@ -70,38 +68,43 @@ export default function CustomerDashboard() {
     fetchJobs();
   }, []);
 
-  // Handle Booking
   const handleBook = (job: any) => {
     Alert.alert("Booking Confirmed", `You booked ${job.title}`);
-    // Later: Save booking info in Firestore under "Bookings"
   };
 
   return (
-    <>
-      <ScrollView className="flex-1 bg-white p-4  bottom-10 overflow-scroll">
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" backgroundColor="#fff" />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
-        <View className="flex-row justify-between items-center mb-4">
-          <TouchableOpacity className="flex-row items-center">
-            <Text className="text-gray-700 font-semibold">Service Area: </Text>
-            <Text className="text-black font-bold">Nabinagar, Savar, Dhaka</Text>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.locationContainer}>
+            <Text style={styles.locationLabel}>Service Area: </Text>
+            <Text style={styles.locationText}>Nabinagar, Savar, Dhaka</Text>
             <Ionicons name="chevron-down" size={20} color="black" />
           </TouchableOpacity>
+
           <TouchableOpacity>
             <Ionicons name="cart" size={28} color="black" />
           </TouchableOpacity>
         </View>
 
         {/* Search Bar */}
-        <View className="flex-row items-center bg-gray-100 rounded-full px-4 py-2 mb-6">
+        <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="gray" />
-          <TextInput placeholder="Search" className="ml-2 flex-1 text-black" />
+          <TextInput placeholder="Search" style={styles.searchInput} />
         </View>
 
         {/* Categories */}
-        <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-lg font-semibold">All Categories</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>All Categories</Text>
           <TouchableOpacity>
-            <Text className="text-blue-500 font-semibold">See All</Text>
+            <Text style={styles.linkText}>See All</Text>
           </TouchableOpacity>
         </View>
 
@@ -110,20 +113,20 @@ export default function CustomerDashboard() {
           keyExtractor={(item) => item.name}
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 10 }}
+          contentContainerStyle={styles.horizontalList}
           renderItem={({ item }) => (
-            <TouchableOpacity className="items-center mr-4 bg-gray-100 rounded-lg p-4 w-24">
-              <Image source={item.icon} className="w-12 h-12 mb-2" />
-              <Text className="text-center text-sm">{item.name}</Text>
+            <TouchableOpacity style={styles.categoryCard}>
+              <Image source={item.icon} style={styles.categoryIcon} />
+              <Text style={styles.categoryText}>{item.name}</Text>
             </TouchableOpacity>
           )}
         />
 
         {/* Best Services */}
-        <View className="flex-row justify-between items-center mt-6 mb-2">
-          <Text className="text-lg font-semibold">Best Services</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Best Services</Text>
           <TouchableOpacity>
-            <Text className="text-blue-500 font-semibold">See All</Text>
+            <Text style={styles.linkText}>See All</Text>
           </TouchableOpacity>
         </View>
 
@@ -133,18 +136,18 @@ export default function CustomerDashboard() {
           horizontal
           showsHorizontalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View className="bg-white shadow rounded-lg mr-4 w-64">
-              <Image source={item.image} className="w-full h-32 rounded-t-lg" />
-              <View className="p-3">
-                <Text className="font-semibold text-black mb-1">{item.name}</Text>
-                <Text className="text-gray-500 text-sm">by {item.provider}</Text>
-                <Text className="text-yellow-500 mt-1">
+            <View style={styles.serviceCard}>
+              <Image source={item.image} style={styles.serviceImage} />
+              <View style={styles.serviceInfo}>
+                <Text style={styles.serviceName}>{item.name}</Text>
+                <Text style={styles.providerText}>by {item.provider}</Text>
+                <Text style={styles.reviewsText}>
                   {"⭐".repeat(Math.round(item.reviews / 30))} ({item.reviews} Reviews)
                 </Text>
-                <View className="flex-row justify-between items-center mt-2">
-                  <Text className="text-black font-bold">${item.price}</Text>
-                  <TouchableOpacity className="bg-blue-500 px-3 py-1 rounded-full">
-                    <Text className="text-white">Add</Text>
+                <View style={styles.serviceFooter}>
+                  <Text style={styles.priceText}>৳{item.price}</Text>
+                  <TouchableOpacity style={styles.addButton}>
+                    <Text style={styles.addText}>Add</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -153,10 +156,10 @@ export default function CustomerDashboard() {
         />
 
         {/* Available Jobs */}
-        <View className="flex-row justify-between items-center mt-6 mb-2">
-          <Text className="text-lg font-semibold">Available Jobs</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Available Jobs</Text>
           <TouchableOpacity onPress={() => router.push("./all_jobs")}>
-            <Text className="text-blue-500 font-semibold">See All</Text>
+            <Text style={styles.linkText}>See All</Text>
           </TouchableOpacity>
         </View>
 
@@ -166,19 +169,19 @@ export default function CustomerDashboard() {
           horizontal
           showsHorizontalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View className="bg-gray-100 rounded-lg p-4 mr-4 w-64">
-              <Text className="text-lg font-bold text-black">{item.title}</Text>
-              <Text className="text-gray-600">{item.description}</Text>
-              <Text className="text-sm text-gray-800 mt-1">💰 {item.price} BDT</Text>
-              <Text className="text-sm text-gray-800">📍 {item.location}</Text>
-              <Text className="text-sm text-gray-700">📂 {item.category}</Text>
-              <Text className="text-sm text-gray-700">👤 {item.name}</Text>
+            <View style={styles.jobCard}>
+              <Text style={styles.jobTitle}>{item.title}</Text>
+              <Text style={styles.jobDescription}>{item.description}</Text>
+              <Text style={styles.jobDetail}>💰 {item.price} BDT</Text>
+              <Text style={styles.jobDetail}>📍 {item.location}</Text>
+              <Text style={styles.jobDetail}>📂 {item.category}</Text>
+              <Text style={styles.jobDetail}>👤 {item.name}</Text>
 
               <TouchableOpacity
                 onPress={() => handleBook(item)}
-                className="bg-green-600 px-4 py-2 rounded-lg mt-3"
+                style={styles.bookButton}
               >
-                <Text className="text-white text-center font-semibold">Book</Text>
+                <Text style={styles.bookText}>Book</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -187,6 +190,87 @@ export default function CustomerDashboard() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="dashboard" />
-    </>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#fff" },
+  scrollView: { flex: 1, backgroundColor: "#fff" },
+  scrollContent: { paddingBottom: 100, paddingHorizontal: 16 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  locationContainer: { flexDirection: "row", alignItems: "center" },
+  locationLabel: { color: "#555", fontWeight: "600" },
+  locationText: { color: "#000", fontWeight: "700" },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f2f2f2",
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 20,
+  },
+  searchInput: { flex: 1, marginLeft: 8, color: "#000" },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: "700", color: "#000" },
+  linkText: { color: "#007bff", fontWeight: "600" },
+  horizontalList: { paddingBottom: 10 },
+  categoryCard: {
+    alignItems: "center",
+    backgroundColor: "#f2f2f2",
+    borderRadius: 10,
+    padding: 12,
+    marginRight: 12,
+    width: 90,
+  },
+  categoryIcon: { width: 40, height: 40, marginBottom: 6 },
+  categoryText: { textAlign: "center", color: "#333", fontSize: 12 },
+  serviceCard: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    marginRight: 12,
+    width: 260,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+  },
+  serviceImage: { width: "100%", height: 120, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
+  serviceInfo: { padding: 10 },
+  serviceName: { fontWeight: "700", color: "#000", marginBottom: 4 },
+  providerText: { color: "#666", fontSize: 13 },
+  reviewsText: { color: "#f5a623", fontSize: 13, marginTop: 4 },
+  serviceFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
+  priceText: { fontWeight: "700", color: "#000" },
+  addButton: { backgroundColor: "#007bff", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
+  addText: { color: "#fff", fontWeight: "600" },
+  jobCard: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 10,
+    padding: 12,
+    marginRight: 12,
+    width: 260,
+  },
+  jobTitle: { fontWeight: "700", fontSize: 16, color: "#000" },
+  jobDescription: { color: "#555", marginVertical: 4 },
+  jobDetail: { fontSize: 13, color: "#333" },
+  bookButton: {
+    backgroundColor: "#28a745",
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginTop: 10,
+  },
+  bookText: { color: "#fff", textAlign: "center", fontWeight: "700" },
+});

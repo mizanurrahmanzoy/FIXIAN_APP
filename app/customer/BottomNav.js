@@ -9,7 +9,7 @@ export default function BottomNav({ activeTab = "Dashboard" }) {
   const tabs = [
     { name: "Dashboard", icon: "home", route: "./dashboard" },
     { name: "Orders", icon: "briefcase-outline", route: "./orders" },
-    { name: "Message", icon: "chatbubble-outline", route: "./chats" },
+    { name: "Message", icon: "chatbubble-outline", route: "./Chats" },
     { name: "Profile", icon: "person-outline", route: "./profile" },
   ];
 
@@ -46,17 +46,17 @@ export default function BottomNav({ activeTab = "Dashboard" }) {
 const styles = StyleSheet.create({
   bottomNav: {
     position: "absolute",
-    bottom: 40, // You can change to 0 if you want it flush to bottom
+    bottom: 10, // You can change to 0 if you want it flush to bottom
     left: 0,
     right: 0,
     flexDirection: "row",
     justifyContent: "space-around",
-    alignItems: "center",
+    alignItems: "top",
     borderTopWidth: 1,
     borderTopColor: "#ddd",
     paddingVertical: 10,
     backgroundColor: "#fff",
-    height: 60,
+    height: 100,
     zIndex: 10,
   },
   navItem: {

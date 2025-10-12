@@ -1,8 +1,18 @@
 // app/customer/orders.tsx
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Image,
+} from "react-native";
 import { auth, db } from "../../firebaseConfig";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { StatusBar } from "expo-status-bar";
 
 export default function Orders() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -35,20 +45,23 @@ export default function Orders() {
   }, []);
 
   const renderOrder = ({ item }: { item: any }) => (
-    <View className="bg-white rounded-lg p-4 mb-3 shadow">
-      <Text className="text-lg font-bold text-black">{item.jobTitle}</Text>
-      <Text className="text-gray-700">{item.jobDescription}</Text>
-      <Text className="text-sm text-gray-600 mt-1">📂 {item.category}</Text>
-      <Text className="text-sm text-gray-600">👤 {item.providerName}</Text>
-      <Text className="text-sm text-gray-600">💰 {item.price} BDT</Text>
+    <View style={styles.orderCard}>
+      <Text style={styles.jobTitle}>{item.jobTitle}</Text>
+      <Text style={styles.jobDescription}>{item.jobDescription}</Text>
+
+      <Text style={styles.jobDetail}>📂 Category: {item.category}</Text>
+      <Text style={styles.jobDetail}>👤 Provider: {item.providerName}</Text>
+      <Text style={styles.jobDetail}>💰 Price: {item.price} BDT</Text>
+
       <Text
-        className={`mt-2 font-semibold ${
+        style={[
+          styles.status,
           item.status === "pending"
-            ? "text-yellow-600"
+            ? styles.statusPending
             : item.status === "accepted"
-            ? "text-green-600"
-            : "text-red-600"
-        }`}
+            ? styles.statusAccepted
+            : styles.statusRejected,
+        ]}
       >
         Status: {item.status}
       </Text>
@@ -57,29 +70,131 @@ export default function Orders() {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="black" />
-        <Text className="mt-3 text-gray-600">Loading your orders...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>Loading your orders...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-100 p-4">
-      <Text className="text-2xl font-bold mb-4 text-black">My Orders</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" backgroundColor="#fff" />
 
-      {orders.length === 0 ? (
-        <Text className="text-gray-600 text-center mt-10">
-          You have no orders yet.
-        </Text>
-      ) : (
-        <FlatList
-          data={orders}
-          keyExtractor={(item) => item.id}
-          renderItem={renderOrder}
-          contentContainerStyle={{ paddingBottom: 50 }}
-        />
-      )}
-    </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>My Orders</Text>
+
+        {orders.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Image
+              source={require("../../assets/empty-orders.png")}
+              style={styles.emptyImage}
+            />
+            <Text style={styles.emptyText}>You have no orders yet.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={orders}
+            keyExtractor={(item) => item.id}
+            renderItem={renderOrder}
+            scrollEnabled={false}
+            contentContainerStyle={{ paddingBottom: 50 }}
+          />
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f9f9f9",
+    marginTop: 20,
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: "#f9f9f9",
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#000",
+    marginBottom: 16,
+  },
+  orderCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  jobTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#000",
+    marginBottom: 4,
+  },
+  jobDescription: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 6,
+  },
+  jobDetail: {
+    fontSize: 13,
+    color: "#333",
+    marginVertical: 2,
+  },
+  status: {
+    marginTop: 10,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  statusPending: {
+    color: "#e6a700",
+  },
+  statusAccepted: {
+    color: "#28a745",
+  },
+  statusRejected: {
+    color: "#dc3545",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    color: "#555",
+    fontSize: 15,
+  },
+  emptyContainer: {
+    marginTop: 60,
+    alignItems: "center",
+  },
+  emptyImage: {
+    width: 180,
+    height: 180,
+    resizeMode: "contain",
+    opacity: 0.7,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#555",
+    marginTop: 12,
+  },
+});
