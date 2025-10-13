@@ -1,4 +1,3 @@
-// app/customer/orders.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -9,16 +8,28 @@ import {
   ScrollView,
   StyleSheet,
   Image,
+  TouchableOpacity,
+  Alert,
 } from "react-native";
 import { auth, db } from "../../firebaseConfig";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
 import { StatusBar } from "expo-status-bar";
 
 export default function Orders() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const user = auth.currentUser;
 
+  // Fetch user's orders
   const fetchOrders = async () => {
     if (!user) return;
     try {
@@ -44,6 +55,50 @@ export default function Orders() {
     fetchOrders();
   }, []);
 
+  // Cancel an order
+  const handleCancelOrder = async (orderId: string, status: string) => {
+    if (status === "cancelled") {
+      Alert.alert("Already Cancelled", "This order has already been cancelled.");
+      return;
+    }
+    if (status === "accepted") {
+      Alert.alert("Not Allowed", "Accepted orders cannot be cancelled.");
+      return;
+    }
+
+    Alert.alert(
+      "Cancel Order",
+      "Are you sure you want to cancel this order?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setUpdating(true);
+              const orderRef = doc(db, "Orders", orderId);
+              await updateDoc(orderRef, { status: "cancelled" });
+
+              setOrders((prev) =>
+                prev.map((order) =>
+                  order.id === orderId ? { ...order, status: "cancelled" } : order
+                )
+              );
+              Alert.alert("Order Cancelled", "Your order has been cancelled.");
+            } catch (error) {
+              console.error("Error cancelling order:", error);
+              Alert.alert("Error", "Failed to cancel order. Try again later.");
+            } finally {
+              setUpdating(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Render each order card
   const renderOrder = ({ item }: { item: any }) => (
     <View style={styles.orderCard}>
       <Text style={styles.jobTitle}>{item.jobTitle}</Text>
@@ -60,11 +115,26 @@ export default function Orders() {
             ? styles.statusPending
             : item.status === "accepted"
             ? styles.statusAccepted
+            : item.status === "cancelled"
+            ? styles.statusCancelled
             : styles.statusRejected,
         ]}
       >
         Status: {item.status}
       </Text>
+
+      {/* Cancel button */}
+      {item.status === "pending" && (
+        <TouchableOpacity
+          style={styles.cancelButton}
+          disabled={updating}
+          onPress={() => handleCancelOrder(item.id, item.status)}
+        >
+          <Text style={styles.cancelButtonText}>
+            {updating ? "Cancelling..." : "Cancel Order"}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -112,6 +182,7 @@ export default function Orders() {
   );
 }
 
+// Styles
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -171,6 +242,21 @@ const styles = StyleSheet.create({
   },
   statusRejected: {
     color: "#dc3545",
+  },
+  statusCancelled: {
+    color: "#999",
+  },
+  cancelButton: {
+    marginTop: 10,
+    backgroundColor: "#dc3545",
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
   },
   loadingContainer: {
     flex: 1,
