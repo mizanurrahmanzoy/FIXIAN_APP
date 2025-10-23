@@ -9,8 +9,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  Image,
 } from "react-native";
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+} from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -21,9 +29,8 @@ interface Message {
   createdAt: any;
 }
 
-export default function ChatRoom({ route, navigation }: any) {
+export default function ChatRoom({ route }: any) {
   const chatId = route?.params?.chatId;
-  const participantIds = route?.params?.participantIds; // optional, in case you need for display
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const flatListRef = useRef<FlatList>(null);
@@ -42,11 +49,7 @@ export default function ChatRoom({ route, navigation }: any) {
         ...(doc.data() as any),
       }));
       setMessages(msgs);
-
-      // Scroll to bottom
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     });
 
     return () => unsubscribe();
@@ -56,17 +59,45 @@ export default function ChatRoom({ route, navigation }: any) {
     if (!input.trim() || !chatId || !user) return;
 
     const messagesRef = collection(db, "Chats", chatId, "messages");
+    await addDoc(messagesRef, {
+      text: input.trim(),
+      senderId: user.uid,
+      createdAt: serverTimestamp(),
+    });
+    setInput("");
+  };
 
-    try {
-      await addDoc(messagesRef, {
-        text: input.trim(),
-        senderId: user.uid,
-        createdAt: serverTimestamp(),
-      });
-      setInput("");
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
+  const renderItem = ({ item }: { item: Message }) => {
+    const isMe = item.senderId === user?.uid;
+    return (
+      <View
+        style={[
+          styles.messageWrapper,
+          isMe ? styles.myMessageWrapper : styles.otherMessageWrapper,
+        ]}
+      >
+        {!isMe && (
+          <Image
+            source={{
+              uri:
+                "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+            }}
+            style={styles.avatar}
+          />
+        )}
+
+        <View
+          style={[
+            styles.messageBubble,
+            isMe ? styles.myMessage : styles.otherMessage,
+          ]}
+        >
+          <Text style={[styles.messageText, isMe && { color: "#fff" }]}>
+            {item.text}
+          </Text>
+        </View>
+      </View>
+    );
   };
 
   if (!chatId) {
@@ -77,23 +108,9 @@ export default function ChatRoom({ route, navigation }: any) {
     );
   }
 
-  const renderItem = ({ item }: { item: Message }) => {
-    const isMe = item.senderId === user?.uid;
-    return (
-      <View
-        style={[
-          styles.messageContainer,
-          isMe ? styles.myMessage : styles.otherMessage,
-        ]}
-      >
-        <Text style={styles.messageText}>{item.text}</Text>
-      </View>
-    );
-  };
-
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#f4f4f4" }}
+      style={{ flex: 1, backgroundColor: "#e9eef7" }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={90}
     >
@@ -102,19 +119,21 @@ export default function ChatRoom({ route, navigation }: any) {
         data={messages}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 10 }}
+        contentContainerStyle={{ padding: 12, paddingBottom: 20 }}
       />
 
       <View style={styles.inputContainer}>
-        <TextInput
-          placeholder="Type a message..."
-          value={input}
-          onChangeText={setInput}
-          style={styles.input}
-        />
-        <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
-          <Ionicons name="send" size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.inputBox}>
+          <TextInput
+            placeholder="Aa"
+            value={input}
+            onChangeText={setInput}
+            style={styles.input}
+          />
+          <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
+            <Ionicons name="send" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -122,37 +141,72 @@ export default function ChatRoom({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  messageContainer: {
-    maxWidth: "80%",
-    padding: 10,
-    borderRadius: 12,
-    marginVertical: 5,
-  },
-  myMessage: { backgroundColor: "#007bff", alignSelf: "flex-end" },
-  otherMessage: { backgroundColor: "#ccc", alignSelf: "flex-start" },
-  messageText: { color: "#fff" },
-  inputContainer: {
+
+  // Messenger-like message alignment
+  messageWrapper: {
     flexDirection: "row",
-    padding: 10,
-    borderTopWidth: 1,
-    borderColor: "#ddd",
+    alignItems: "flex-end",
+    marginVertical: 6,
+  },
+  myMessageWrapper: { justifyContent: "flex-end", alignSelf: "flex-end" },
+  otherMessageWrapper: { alignSelf: "flex-start" },
+
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 6,
+  },
+
+  messageBubble: {
+    maxWidth: "75%",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+
+  myMessage: {
+    backgroundColor: "#0084ff",
+    borderBottomRightRadius: 4,
+  },
+  otherMessage: {
     backgroundColor: "#fff",
+    borderBottomLeftRadius: 4,
+  },
+  messageText: {
+    color: "#000",
+    fontSize: 16,
+  },
+
+  inputContainer: {
+    padding: 8,
+    borderTopWidth: 0,
+    backgroundColor: "#e9eef7",
+  },
+  inputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 25,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    marginRight: 10,
-    backgroundColor: "#f9f9f9",
+    fontSize: 16,
+    paddingHorizontal: 10,
   },
   sendButton: {
-    backgroundColor: "#007bff",
+    backgroundColor: "#0084ff",
     borderRadius: 25,
     padding: 10,
-    justifyContent: "center",
-    alignItems: "center",
   },
 });

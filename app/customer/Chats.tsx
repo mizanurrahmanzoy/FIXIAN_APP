@@ -1,158 +1,126 @@
-// app/chat/ChatRoom.tsx
-import React, { useEffect, useState, useRef } from "react";
+// app/customer/Chats.tsx
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
+  TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "../../firebaseConfig";
-import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { db, auth } from "../../firebaseConfig";
+import { collection, query, where, onSnapshot, orderBy, getDocs } from "firebase/firestore";
 
-interface Message {
-  id: string;
-  text: string;
-  senderId: string;
-  createdAt: any;
-}
-
-export default function ChatRoom({ route, navigation }: any) {
-  const chatId = route?.params?.chatId;
-  const participantIds = route?.params?.participantIds; // optional, in case you need for display
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const flatListRef = useRef<FlatList>(null);
-
+export default function Chats() {
+  const [chats, setChats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const user = auth.currentUser;
+  const router = useRouter();
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!user) return;
 
-    const messagesRef = collection(db, "Chats", chatId, "messages");
-    const q = query(messagesRef, orderBy("createdAt", "asc"));
+    const chatsRef = collection(db, "chats");
+    const q = query(chatsRef, where("participants", "array-contains", user.uid));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs: Message[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as any),
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const chatsData = await Promise.all(
+        snapshot.docs.map(async (doc) => {
+          const data = doc.data();
+          const messagesRef = collection(db, "chats", doc.id, "messages");
+          const lastMsgQuery = query(messagesRef, orderBy("createdAt", "desc"));
+          const messagesSnapshot = await getDocs(lastMsgQuery);
+
+          const lastMsgDoc = messagesSnapshot.docs[0];
+          const lastMessage = lastMsgDoc
+            ? { ...lastMsgDoc.data(), id: lastMsgDoc.id }
+            : { text: "No messages yet", createdAt: null };
+
+          // Determine chat name
+          const otherParticipantId = data.participants.find((id: string) => id !== user.uid);
+          const chatName = data.providerName || data.customerName || "Unknown";
+
+          return {
+            chatId: doc.id,
+            lastMessage,
+            chatName,
+            participants: data.participants,
+          };
+        })
+      );
+
+      setChats(chatsData.sort((a, b) => {
+        const timeA = a.lastMessage.createdAt?.toMillis() || 0;
+        const timeB = b.lastMessage.createdAt?.toMillis() || 0;
+        return timeB - timeA; // newest first
       }));
-      setMessages(msgs);
 
-      // Scroll to bottom
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [chatId]);
+  }, [user]);
 
-  const handleSend = async () => {
-    if (!input.trim() || !chatId || !user) return;
-
-    const messagesRef = collection(db, "Chats", chatId, "messages");
-
-    try {
-      await addDoc(messagesRef, {
-        text: input.trim(),
-        senderId: user.uid,
-        createdAt: serverTimestamp(),
-      });
-      setInput("");
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
+  const openChat = (chat: any) => {
+    const otherParticipantId = chat.participants.find((id: string) => id !== user.uid);
+    router.push(
+      `/customer/ChatRoom?chatId=${chat.chatId}&senderId=${user.uid}&receiverId=${otherParticipantId}&receiverName=${chat.chatName}`
+    );
   };
 
-  if (!chatId) {
+  const renderChatItem = ({ item }: { item: any }) => (
+    <TouchableOpacity style={styles.chatCard} onPress={() => openChat(item)}>
+      <View style={styles.chatContent}>
+        <Text style={styles.chatName}>{item.chatName}</Text>
+        <Text
+          style={styles.chatLastMessage}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {item.lastMessage.text}
+        </Text>
+      </View>
+      <Text style={styles.chatTime}>
+        {item.lastMessage.createdAt
+          ? new Date(item.lastMessage.createdAt.seconds * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : ""}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  if (loading) {
     return (
-      <View style={styles.center}>
-        <Text>No chat selected.</Text>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007bff" />
+        <Text style={{ marginTop: 10 }}>Loading chats...</Text>
       </View>
     );
   }
 
-  const renderItem = ({ item }: { item: Message }) => {
-    const isMe = item.senderId === user?.uid;
-    return (
-      <View
-        style={[
-          styles.messageContainer,
-          isMe ? styles.myMessage : styles.otherMessage,
-        ]}
-      >
-        <Text style={styles.messageText}>{item.text}</Text>
-      </View>
-    );
-  };
-
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#f4f4f4" }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={90}
-    >
+    <View style={styles.container}>
       <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 10 }}
+        data={chats}
+        keyExtractor={(item) => item.chatId}
+        renderItem={renderChatItem}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#eee" }} />}
       />
-
-      <View style={styles.inputContainer}>
-        <TextInput
-          placeholder="Type a message..."
-          value={input}
-          onChangeText={setInput}
-          style={styles.input}
-        />
-        <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
-          <Ionicons name="send" size={22} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  messageContainer: {
-    maxWidth: "80%",
-    padding: 10,
-    borderRadius: 12,
-    marginVertical: 5,
-  },
-  myMessage: { backgroundColor: "#007bff", alignSelf: "flex-end" },
-  otherMessage: { backgroundColor: "#ccc", alignSelf: "flex-start" },
-  messageText: { color: "#fff" },
-  inputContainer: {
+  container: { flex: 1, backgroundColor: "#fff" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  chatCard: {
     flexDirection: "row",
-    padding: 10,
-    borderTopWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "#fff",
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    marginRight: 10,
-    backgroundColor: "#f9f9f9",
-  },
-  sendButton: {
-    backgroundColor: "#007bff",
-    borderRadius: 25,
-    padding: 10,
-    justifyContent: "center",
+    justifyContent: "space-between",
+    padding: 16,
     alignItems: "center",
   },
+  chatContent: { flex: 1, marginRight: 10 },
+  chatName: { fontSize: 16, fontWeight: "600", color: "#111" },
+  chatLastMessage: { fontSize: 14, color: "#666", marginTop: 2 },
+  chatTime: { fontSize: 12, color: "#999" },
 });

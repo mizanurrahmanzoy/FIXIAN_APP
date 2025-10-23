@@ -1,4 +1,4 @@
-// app/customer/all_jobs.tsx
+// app/customer/AllJobs.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -17,10 +17,10 @@ import {
   collection,
   getDocs,
   addDoc,
-  serverTimestamp,
   query,
   orderBy,
   where,
+  serverTimestamp,
 } from "firebase/firestore";
 
 export default function AllJobs() {
@@ -32,20 +32,17 @@ export default function AllJobs() {
   const user = auth.currentUser;
   const router = useRouter();
 
-  // Fetch jobs
+  // Fetch jobs from Firestore
   const fetchJobs = async () => {
     try {
       const q = query(collection(db, "Jobs"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const jobsData = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const snapshot = await getDocs(q);
+      const jobsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setJobs(jobsData);
       setFilteredJobs(jobsData);
     } catch (error) {
-      console.error("Error fetching jobs:", error);
-      Alert.alert("Error", "Failed to fetch services.");
+      console.error(error);
+      Alert.alert("Error", "Failed to fetch jobs.");
     } finally {
       setLoading(false);
     }
@@ -55,10 +52,10 @@ export default function AllJobs() {
     fetchJobs();
   }, []);
 
-  // Handle search
+  // Search jobs
   const handleSearch = (text: string) => {
     setSearch(text);
-    if (text.trim() === "") {
+    if (!text.trim()) {
       setFilteredJobs(jobs);
     } else {
       const filtered = jobs.filter((job) =>
@@ -71,13 +68,12 @@ export default function AllJobs() {
     }
   };
 
-  // Handle booking
+  // Direct Booking
   const handleBook = async (job: any) => {
     if (!user) {
       Alert.alert("Login Required", "You must be logged in to book a service.");
       return;
     }
-
     try {
       await addDoc(collection(db, "Orders"), {
         jobId: job.id,
@@ -93,15 +89,14 @@ export default function AllJobs() {
         status: "pending",
         createdAt: serverTimestamp(),
       });
-
       Alert.alert("Booking Request Sent", "Your booking request was sent.");
     } catch (error) {
-      console.error("Booking Error:", error);
+      console.error(error);
       Alert.alert("Error", "Failed to send booking request.");
     }
   };
 
-  // Handle Message
+  // Messaging
   const handleMessage = async (job: any) => {
     if (!user) {
       Alert.alert("Login Required", "You must be logged in to chat.");
@@ -109,45 +104,50 @@ export default function AllJobs() {
     }
 
     try {
-      const chatsRef = collection(db, "Chats");
+      const chatsRef = collection(db, "chats");
 
-      // Check if a chat already exists between customer and provider
+      // Check existing chat
       const q = query(chatsRef, where("participants", "array-contains", user.uid));
-      const querySnapshot = await getDocs(q);
+      const snapshot = await getDocs(q);
 
       let chatId: string | null = null;
 
-      querySnapshot.forEach((docSnap) => {
+      snapshot.forEach((docSnap) => {
         const data = docSnap.data();
         const participants: string[] = data.participants || [];
-        if (
-          participants.includes(user.uid) &&
-          participants.includes(job.providerId)
-        ) {
+        if (participants.includes(user.uid) && participants.includes(job.providerId)) {
           chatId = docSnap.id;
         }
       });
 
-      // If chat doesn't exist, create a new chat
+      // Create chat if not exists
       if (!chatId) {
         const chatDoc = await addDoc(chatsRef, {
           participants: [user.uid, job.providerId],
-          providerName: job.name || "Unknown Provider",
+          providerName: job.name || "Service Provider",
           customerName: user.displayName || "Customer",
           createdAt: serverTimestamp(),
         });
         chatId = chatDoc.id;
       }
 
-      // Navigate to ChatRoom with chatId
-      router.push(`/customer/ChatRoom?chatId=${chatId}`);
+      // Navigate to ChatRoom
+      router.push({
+        pathname: "/customer/ChatRoom",
+        params: {
+          chatId,
+          senderId: user.uid,
+          receiverId: job.providerId,
+          receiverName: job.name || "Service Provider",
+        },
+      });
     } catch (error) {
-      console.error("Error starting chat:", error);
+      console.error(error);
       Alert.alert("Error", "Failed to start chat.");
     }
   };
 
-  // Render Job Card
+  // Render job card
   const renderJob = ({ item }: { item: any }) => (
     <View style={styles.card}>
       <Text style={styles.jobTitle}>{item.title}</Text>
