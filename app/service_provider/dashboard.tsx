@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   collection,
   doc,
-  getDocs,
+  getDocs,getDoc,
   query,
   serverTimestamp,
   updateDoc,
@@ -27,9 +27,51 @@ export default function Dashboard() {
   const router = useRouter();
   const user = auth.currentUser;
 
+  const [providerData, setProviderData] = useState<{
+  name?: string;
+  phone?: string;
+  serviceCategory?: string;
+  experience?: string;
+  location?: any;
+  profileImage?: string;
+}>({});
+  useEffect(() => {
+  if (!user) return;
+
+  const fetchProviderData = async () => {
+    try {
+      const docRef = doc(db, "ServiceProviders", user.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setProviderData({
+          name: data.name,
+          phone: data.phone,
+          serviceCategory: data.serviceCategory,
+          experience: data.experience,
+          location: data.location,
+          profileImage: data.profileImage,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching provider data:", error);
+    }
+  };
+
+  fetchProviderData();
+}, [user]);
+
   const [jobRequests, setJobRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"pending" | "accepted" | "completed">("pending");
+  const [activeTab, setActiveTab] = useState<
+    "pending" | "accepted" | "completed"
+  >("pending");
+
+ 
+  // ========================
+  // LOAD JOB REQUESTS
+  // ========================
 
   useEffect(() => {
     if (!user) return;
@@ -37,7 +79,10 @@ export default function Dashboard() {
     const fetchJobs = async () => {
       setLoading(true);
       try {
-        const q = query(collection(db, "Orders"), where("providerId", "==", user.uid));
+        const q = query(
+          collection(db, "Orders"),
+          where("providerId", "==", user.uid)
+        );
         const snapshot = await getDocs(q);
         const jobs: any[] = [];
         snapshot.forEach((docSnap) => {
@@ -54,7 +99,10 @@ export default function Dashboard() {
     fetchJobs();
   }, [user]);
 
-  const handleAction = async (jobId: string, action: "accepted" | "rejected") => {
+  const handleAction = async (
+    jobId: string,
+    action: "accepted" | "rejected"
+  ) => {
     try {
       await updateDoc(doc(db, "Orders", jobId), {
         status: action,
@@ -75,7 +123,9 @@ export default function Dashboard() {
         updatedAt: serverTimestamp(),
       });
       setJobRequests((prev) =>
-        prev.map((job) => (job.id === jobId ? { ...job, status: "completed" } : job))
+        prev.map((job) =>
+          job.id === jobId ? { ...job, status: "completed" } : job
+        )
       );
     } catch (error) {
       console.error("Error marking job done:", error);
@@ -101,7 +151,7 @@ export default function Dashboard() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.name}>{user?.displayName || "Provider"}</Text>
+          <Text style={styles.name}>{providerData.name || "Provider"}</Text>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Text style={styles.role}>Service Provider </Text>
             <Ionicons name="star" size={16} color="#f4b400" />
@@ -113,11 +163,18 @@ export default function Dashboard() {
         </View>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <TouchableOpacity onPress={() => alert("Notifications placeholder")}>
-            <Ionicons name="notifications-outline" size={22} color="#000" style={{ marginRight: 15 }} />
+            <Ionicons
+              name="notifications-outline"
+              size={22}
+              color="#000"
+              style={{ marginRight: 15 }}
+            />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("./provider/profile")}>
+          <TouchableOpacity onPress={() => router.push("/service_provider/profile")}>
             <Image
-              source={{ uri: user?.photoURL || "https://i.pravatar.cc/100?img=12" }}
+              source={{
+                uri: providerData.profileImage || "https://i.pravatar.cc/100?img=12",
+              }}
               style={styles.avatar}
             />
           </TouchableOpacity>
@@ -132,26 +189,46 @@ export default function Dashboard() {
             style={[styles.tabButton, activeTab === tab && styles.activeTab]}
             onPress={() => setActiveTab(tab as any)}
           >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab && styles.activeTabText,
+              ]}
+            >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
         {filteredJobs.length === 0 ? (
-          <Text style={{ textAlign: "center", marginVertical: 20 }}>No jobs in this section</Text>
+          <Text style={{ textAlign: "center", marginVertical: 20 }}>
+            No jobs in this section
+          </Text>
         ) : (
           filteredJobs.map((job) => (
-            <View key={job.id} style={[styles.jobCard, job.status === "pending" && styles.pendingJob]}>
+            <View
+              key={job.id}
+              style={[
+                styles.jobCard,
+                job.status === "pending" && styles.pendingJob,
+              ]}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={styles.jobTitle}>{job.jobTitle}</Text>
                 <Text style={styles.jobDescription}>{job.jobDescription}</Text>
-                <Text style={styles.jobInfo}>Category: {job.category || "N/A"}</Text>
+                <Text style={styles.jobInfo}>
+                  Category: {job.category || "N/A"}
+                </Text>
                 <Text style={styles.jobInfo}>Price: ${job.price}</Text>
                 <Text style={styles.jobInfo}>Location: {job.location}</Text>
-                <Text style={[styles.statusLabel, getStatusStyle(job.status)]}>{job.status.toUpperCase()}</Text>
+                <Text style={[styles.statusLabel, getStatusStyle(job.status)]}>
+                  {job.status.toUpperCase()}
+                </Text>
               </View>
 
               {/* Actions */}
@@ -164,7 +241,10 @@ export default function Dashboard() {
                     <Text style={styles.jobButtonText}>Accept</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.jobButton, { backgroundColor: "#ff4d4f", marginLeft: 5 }]}
+                    style={[
+                      styles.jobButton,
+                      { backgroundColor: "#ff4d4f", marginLeft: 5 },
+                    ]}
                     onPress={() => handleAction(job.id, "rejected")}
                   >
                     <Text style={styles.jobButtonText}>Reject</Text>
@@ -174,7 +254,10 @@ export default function Dashboard() {
 
               {job.status === "accepted" && (
                 <TouchableOpacity
-                  style={[styles.jobButton, { backgroundColor: "#28a745", marginTop: 5 }]}
+                  style={[
+                    styles.jobButton,
+                    { backgroundColor: "#28a745", marginTop: 5 },
+                  ]}
                   onPress={() => handleMarkDone(job.id)}
                 >
                   <Text style={styles.jobButtonText}>Mark Done</Text>
@@ -194,30 +277,65 @@ export default function Dashboard() {
 const getStatusStyle = (status: string) => {
   switch (status) {
     case "pending":
-      return { backgroundColor: "#f0ad4e", color: "#fff", paddingHorizontal: 6, borderRadius: 4 };
+      return {
+        backgroundColor: "#f0ad4e",
+        color: "#fff",
+        paddingHorizontal: 6,
+        borderRadius: 4,
+      };
     case "accepted":
-      return { backgroundColor: "#007bff", color: "#fff", paddingHorizontal: 6, borderRadius: 4 };
+      return {
+        backgroundColor: "#007bff",
+        color: "#fff",
+        paddingHorizontal: 6,
+        borderRadius: 4,
+      };
     case "completed":
-      return { backgroundColor: "#28a745", color: "#fff", paddingHorizontal: 6, borderRadius: 4 };
+      return {
+        backgroundColor: "#28a745",
+        color: "#fff",
+        paddingHorizontal: 6,
+        borderRadius: 4,
+      };
     case "rejected":
-      return { backgroundColor: "#dc3545", color: "#fff", paddingHorizontal: 6, borderRadius: 4 };
+      return {
+        backgroundColor: "#dc3545",
+        color: "#fff",
+        paddingHorizontal: 6,
+        borderRadius: 4,
+      };
     default:
       return {};
   }
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", paddingHorizontal: 20, paddingTop: 40 },
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingTop: 40,
+  },
 
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   name: { fontSize: 20, fontWeight: "700", color: "#000" },
   role: { fontSize: 14, color: "#555", marginRight: 5 },
   avatar: { width: 35, height: 35, borderRadius: 20 },
 
   tabs: { flexDirection: "row", marginTop: 20, marginBottom: 10 },
-  tabButton: { flex: 1, paddingVertical: 8, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "#ccc" },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "#ccc",
+  },
   activeTab: { borderBottomColor: "#007bff" },
   tabText: { fontSize: 16, color: "#555" },
   activeTabText: { color: "#007bff", fontWeight: "700" },
@@ -234,7 +352,18 @@ const styles = StyleSheet.create({
   jobTitle: { fontSize: 16, fontWeight: "600" },
   jobDescription: { color: "#777", fontSize: 14, marginTop: 2 },
   jobInfo: { color: "#555", fontSize: 13, marginTop: 2 },
-  statusLabel: { marginTop: 5, alignSelf: "flex-start", fontSize: 12, fontWeight: "600" },
-  jobButton: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  statusLabel: {
+    marginTop: 5,
+    alignSelf: "flex-start",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  jobButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   jobButtonText: { color: "#fff", fontWeight: "600" },
 });

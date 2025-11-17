@@ -1,20 +1,34 @@
 // app/customer/Chats.tsx
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
 import { useRouter } from "expo-router";
-import { db, auth } from "../../firebaseConfig";
-import { collection, query, where, onSnapshot, orderBy, getDocs } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { auth, db } from "../../firebaseConfig";
 
 export default function Chats() {
   const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+
   const user = auth.currentUser;
   const router = useRouter();
 
@@ -26,9 +40,11 @@ export default function Chats() {
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const chatsData = await Promise.all(
-        snapshot.docs.map(async (doc) => {
-          const data = doc.data();
-          const messagesRef = collection(db, "chats", doc.id, "messages");
+        snapshot.docs.map(async (docSnap) => {
+          const data = docSnap.data();
+
+          const chatId = docSnap.id;
+          const messagesRef = collection(db, "chats", chatId, "messages");
           const lastMsgQuery = query(messagesRef, orderBy("createdAt", "desc"));
           const messagesSnapshot = await getDocs(lastMsgQuery);
 
@@ -37,90 +53,250 @@ export default function Chats() {
             ? { ...lastMsgDoc.data(), id: lastMsgDoc.id }
             : { text: "No messages yet", createdAt: null };
 
-          // Determine chat name
-          const otherParticipantId = data.participants.find((id: string) => id !== user.uid);
-          const chatName = data.providerName || data.customerName || "Unknown";
+          // Identify other participant
+          const otherUserId = data.participants.find((id: string) => id !== user.uid);
+
+          // Fetch provider info
+          const providerRef = doc(db, "ServiceProviders", otherUserId);
+          const providerSnap = await getDoc(providerRef);
+          const providerData = providerSnap.exists() ? providerSnap.data() : null;
+
+          const unreadCount =
+            data.unreadCounts && data.unreadCounts[user.uid]
+              ? data.unreadCounts[user.uid]
+              : 0;
 
           return {
-            chatId: doc.id,
+            chatId,
             lastMessage,
-            chatName,
             participants: data.participants,
+            unreadCount,
+            providerName: providerData?.name || "Unknown",
+            providerImage:
+              providerData?.profileImage ||
+              "https://cdn-icons-png.flaticon.com/512/149/149071.png",
           };
         })
       );
 
-      setChats(chatsData.sort((a, b) => {
-        const timeA = a.lastMessage.createdAt?.toMillis() || 0;
-        const timeB = b.lastMessage.createdAt?.toMillis() || 0;
-        return timeB - timeA; // newest first
-      }));
+      const sorted = chatsData.sort((a, b) => {
+        const timeA = a.lastMessage.createdAt?.seconds || 0;
+        const timeB = b.lastMessage.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
 
+      setChats(sorted);
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [user]);
 
+  // Open Chat
   const openChat = (chat: any) => {
-    const otherParticipantId = chat.participants.find((id: string) => id !== user.uid);
+    if (!user) return;
+    
+    const otherUserId = chat.participants.find((id: string) => id !== user.uid);
+
     router.push(
-      `/customer/ChatRoom?chatId=${chat.chatId}&senderId=${user.uid}&receiverId=${otherParticipantId}&receiverName=${chat.chatName}`
+      `/customer/ChatRoom?chatId=${chat.chatId}&senderId=${user.uid}&receiverId=${otherUserId}&receiverName=${chat.providerName}`
     );
   };
 
-  const renderChatItem = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.chatCard} onPress={() => openChat(item)}>
-      <View style={styles.chatContent}>
-        <Text style={styles.chatName}>{item.chatName}</Text>
-        <Text
-          style={styles.chatLastMessage}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {item.lastMessage.text}
-        </Text>
-      </View>
-      <Text style={styles.chatTime}>
-        {item.lastMessage.createdAt
-          ? new Date(item.lastMessage.createdAt.seconds * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          : ""}
-      </Text>
-    </TouchableOpacity>
+  // Filter (Search)
+  const filteredChats = chats.filter((chat) =>
+    chat.providerName.toLowerCase().includes(searchText.toLowerCase())
   );
 
+  // Chat Row Component
+  const renderChatItem = ({ item }: { item: any }) => {
+    const isUnread = item.unreadCount > 0;
+
+    return (
+      <TouchableOpacity style={styles.chatCard} onPress={() => openChat(item)}>
+        <Image source={{ uri: item.providerImage }} style={styles.avatar} />
+
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={styles.chatHeader}>
+            <Text style={[styles.chatName, isUnread && styles.boldText]}>
+              {item.providerName}
+            </Text>
+
+            <Text style={styles.chatTime}>
+              {item.lastMessage.createdAt
+                ? new Date(
+                    item.lastMessage.createdAt.seconds * 1000
+                  ).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : ""}
+            </Text>
+          </View>
+
+          <View style={styles.chatFooter}>
+            <Text
+              style={[
+                styles.chatLastMessage,
+                isUnread && styles.boldText,
+              ]}
+              numberOfLines={1}
+            >
+              {item.lastMessage.text}
+            </Text>
+
+            {isUnread && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadText}>{item.unreadCount}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Loading Screen
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007bff" />
         <Text style={{ marginTop: 10 }}>Loading chats...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Chats</Text>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchWrapper}>
+        <TextInput
+          placeholder="Search"
+          placeholderTextColor="#888"
+          style={styles.searchInput}
+          value={searchText}
+          onChangeText={setSearchText}
+        />
+      </View>
+
+      {/* Chat List */}
       <FlatList
-        data={chats}
+        data={filteredChats}
         keyExtractor={(item) => item.chatId}
         renderItem={renderChatItem}
-        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#eee" }} />}
+        contentContainerStyle={{ paddingBottom: 20 }}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#F8F9FA", // Light Theme
+  },
+
+  // Header
+  header: {
+    padding: 16,
+    backgroundColor: "#EEE",
+    borderBottomWidth: 1,
+    borderColor: "#DDD",
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#333",
+  },
+
+  // Search
+  searchWrapper: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  searchInput: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#DDD",
+  },
+
+  // Chat Row
   chatCard: {
     flexDirection: "row",
+    padding: 14,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+  },
+
+  avatar: {
+    width: 55,
+    height: 55,
+    borderRadius: 30,
+  },
+
+  chatHeader: {
+    flexDirection: "row",
     justifyContent: "space-between",
-    padding: 16,
+  },
+
+  chatName: {
+    fontSize: 16,
+    color: "#222",
+  },
+
+  chatFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
-  chatContent: { flex: 1, marginRight: 10 },
-  chatName: { fontSize: 16, fontWeight: "600", color: "#111" },
-  chatLastMessage: { fontSize: 14, color: "#666", marginTop: 2 },
-  chatTime: { fontSize: 12, color: "#999" },
+
+  chatLastMessage: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 4,
+    flex: 1,
+  },
+
+  chatTime: {
+    fontSize: 12,
+    color: "#777",
+  },
+
+  boldText: {
+    fontWeight: "700",
+    color: "#000",
+  },
+
+  unreadBadge: {
+    backgroundColor: "#25D366",
+    borderRadius: 12,
+    minWidth: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    marginLeft: 8,
+  },
+
+  unreadText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });

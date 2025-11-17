@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Image,
   TextInput,
+  SafeAreaView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { db, auth } from "../../firebaseConfig";
@@ -20,16 +21,12 @@ import {
   orderBy,
   getDocs,
 } from "firebase/firestore";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 type ChatMessage = {
   id: string;
   text: string;
   createdAt: any;
-  user?: {
-    _id: string;
-    name: string;
-  };
+  user?: { _id: string; name: string };
   readBy?: string[];
 };
 
@@ -138,7 +135,7 @@ export default function ProviderChats() {
   );
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#fff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Chats</Text>
@@ -168,7 +165,7 @@ export default function ProviderChats() {
           ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#eee" }} />}
         />
       )}
-    </GestureHandlerRootView>
+    </SafeAreaView>
   );
 }
 
@@ -184,14 +181,27 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 8,
     paddingHorizontal: 12,
-    height: 40,
+    height: 42,
     fontSize: 16,
     color: "#111",
   },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  chatCard: { flexDirection: "row", padding: 16, alignItems: "center", backgroundColor: "#f9f9f9" },
-  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
+  chatCard: {
+    flexDirection: "row",
+    padding: 16,
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 12,
+    marginVertical: 6,
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  avatar: { width: 52, height: 52, borderRadius: 26, marginRight: 14 },
   chatContent: { flex: 1 },
   chatRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   chatName: { fontSize: 16, fontWeight: "600", color: "#111" },
