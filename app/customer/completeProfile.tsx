@@ -1,5 +1,13 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+} from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
 import { auth, db } from "../../firebaseConfig";
@@ -43,18 +51,21 @@ export default function CustomerCompleteProfile() {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Save to "customers" collection instead of "users"
-      await setDoc(doc(db, "customers", user.uid), {
-        customerId: user.uid,
-        name,
-        email,
-        phone,
-        dob,
-        location: { district, thana, city, village, union },
-        createdAt: serverTimestamp(),
-        isProfileComplete: true,
-        role: "customer",
-      }, { merge: true }); // merge:true ensures existing data is not overwritten
+      await setDoc(
+        doc(db, "customers", user.uid),
+        {
+          customerId: user.uid,
+          name,
+          email,
+          phone,
+          dob,
+          location: { district, thana, city, village, union },
+          createdAt: serverTimestamp(),
+          isProfileComplete: true,
+          role: "customer",
+        },
+        { merge: true }
+      );
 
       setLoading(false);
       Alert.alert("Success", "Profile completed successfully!");
@@ -67,15 +78,15 @@ export default function CustomerCompleteProfile() {
   };
 
   return (
-    <View className="flex-1 bg-black justify-center items-center px-6">
-      <Text className="text-white text-2xl font-bold mb-6">Complete Customer Profile</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Complete Customer Profile</Text>
 
       <TextInput
         placeholder="Full Name"
         placeholderTextColor="#aaa"
         value={name}
         onChangeText={setName}
-        className="bg-white w-full p-4 rounded-lg mb-3 text-black"
+        style={styles.input}
       />
 
       <TextInput
@@ -83,7 +94,7 @@ export default function CustomerCompleteProfile() {
         placeholderTextColor="#aaa"
         value={email}
         editable={false}
-        className="bg-gray-300 w-full p-4 rounded-lg mb-3 text-black"
+        style={[styles.input, styles.disabledInput]}
       />
 
       <TextInput
@@ -91,7 +102,7 @@ export default function CustomerCompleteProfile() {
         placeholderTextColor="#aaa"
         value={phone}
         onChangeText={setPhone}
-        className="bg-white w-full p-4 rounded-lg mb-3 text-black"
+        style={styles.input}
       />
 
       <TextInput
@@ -99,14 +110,13 @@ export default function CustomerCompleteProfile() {
         placeholderTextColor="#aaa"
         value={dob}
         onChangeText={setDob}
-        className="bg-white w-full p-4 rounded-lg mb-3 text-black"
+        style={styles.input}
       />
 
-      {/* District Dropdown */}
       <Picker
         selectedValue={district}
         onValueChange={(value) => setDistrict(value)}
-        style={{ backgroundColor: "white", marginBottom: 10, width: "100%" }}
+        style={styles.picker}
       >
         <Picker.Item label="Select District" value="" />
         {districtsList.map((d, i) => (
@@ -119,7 +129,7 @@ export default function CustomerCompleteProfile() {
         placeholderTextColor="#aaa"
         value={thana}
         onChangeText={setThana}
-        className="bg-white w-full p-4 rounded-lg mb-3 text-black"
+        style={styles.input}
       />
 
       <TextInput
@@ -127,7 +137,7 @@ export default function CustomerCompleteProfile() {
         placeholderTextColor="#aaa"
         value={city}
         onChangeText={setCity}
-        className="bg-white w-full p-4 rounded-lg mb-3 text-black"
+        style={styles.input}
       />
 
       <TextInput
@@ -135,7 +145,7 @@ export default function CustomerCompleteProfile() {
         placeholderTextColor="#aaa"
         value={village}
         onChangeText={setVillage}
-        className="bg-white w-full p-4 rounded-lg mb-3 text-black"
+        style={styles.input}
       />
 
       <TextInput
@@ -143,16 +153,61 @@ export default function CustomerCompleteProfile() {
         placeholderTextColor="#aaa"
         value={union}
         onChangeText={setUnion}
-        className="bg-white w-full p-4 rounded-lg mb-4 text-black"
+        style={styles.input}
       />
 
       {loading ? (
-        <ActivityIndicator size="large" color="#fff" />
+        <ActivityIndicator size="large" color="#000" style={{ marginTop: 20 }} />
       ) : (
-        <TouchableOpacity onPress={handleSave} className="bg-white w-full py-4 rounded-full">
-          <Text className="text-black text-center text-lg font-semibold">Save Profile</Text>
+        <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
+          <Text style={styles.saveText}>Save Profile</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  title: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  input: {
+    backgroundColor: "#fff",
+    width: "100%",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+    color: "#000",
+  },
+  disabledInput: {
+    backgroundColor: "#ccc",
+  },
+  picker: {
+    width: "100%",
+    backgroundColor: "#fff",
+    marginBottom: 12,
+  },
+  saveBtn: {
+    backgroundColor: "#fff",
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 25,
+    marginTop: 10,
+  },
+  saveText: {
+    color: "#000",
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});

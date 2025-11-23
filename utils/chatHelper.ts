@@ -1,13 +1,13 @@
 // app/utils/chatHelper.ts
 import {
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  serverTimestamp,
+    addDoc,
+    collection,
+    getDocs,
+    query,
+    serverTimestamp,
+    where,
 } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import { db } from "../firebaseConfig";
 
 export const findOrCreateChat = async (user1Id: string, user2Id: string) => {
   const chatsRef = collection(db, "Chats");

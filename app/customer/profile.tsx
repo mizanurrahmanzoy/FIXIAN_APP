@@ -12,25 +12,23 @@ import {
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
-import {
-  doc,
-  getDoc,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { CLOUDINARY_UPLOAD_URL, UPLOAD_PRESET } from "../utils/cloudinary";
+import { CLOUDINARY_UPLOAD_URL, UPLOAD_PRESET } from "../../utils/cloudinary";
 
 export default function CustomerProfile() {
   const user = auth.currentUser;
+
   if (!user) {
-      return (
-        <View style={styles.center}>
-          <Text>Not authenticated</Text>
-        </View>
-      );
-    }
+    return (
+      <View style={styles.center}>
+        <Text>Not authenticated</Text>
+      </View>
+    );
+  }
+
   const customerRef = doc(db, "customers", user.uid);
 
   const [loading, setLoading] = useState(true);
@@ -55,8 +53,28 @@ export default function CustomerProfile() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const snap = await getDoc(customerRef);
+        // First try local storage
+        const localData = await AsyncStorage.getItem(`user_${user.uid}`);
+        if (localData) {
+          const data = JSON.parse(localData);
+          setProfileImage(data.profileImage || null);
+          setName(data.name || "");
+          setPhone(data.phone || "");
+          setDob(data.dob || "");
 
+          if (data.location) {
+            setCity(data.location.city || "");
+            setDistrict(data.location.district || "");
+            setThana(data.location.thana || "");
+            setUnion(data.location.union || "");
+            setVillage(data.location.village || "");
+          }
+          setLoading(false);
+          return;
+        }
+
+        // Fetch from Firestore if local not found
+        const snap = await getDoc(customerRef);
         if (snap.exists()) {
           const data = snap.data();
 
@@ -72,6 +90,12 @@ export default function CustomerProfile() {
             setUnion(data.location.union || "");
             setVillage(data.location.village || "");
           }
+
+          // Save to local storage for next time
+          await AsyncStorage.setItem(
+            `user_${user.uid}`,
+            JSON.stringify(data)
+          );
         }
       } catch (e) {
         console.log("Error loading profile:", e);
@@ -157,7 +181,7 @@ export default function CustomerProfile() {
   // ========================
   const saveInfo = async () => {
     try {
-      await updateDoc(customerRef, {
+      const dataToSave = {
         profileImage,
         name,
         phone,
@@ -170,7 +194,13 @@ export default function CustomerProfile() {
           union,
           village,
         },
-      });
+      };
+
+      await updateDoc(customerRef, dataToSave);
+
+      // Save locally
+      await AsyncStorage.setItem(`user_${user.uid}`, JSON.stringify(dataToSave));
+
       Alert.alert("Saved", "Profile updated successfully");
       setEditMode(false);
     } catch (error) {
@@ -182,8 +212,18 @@ export default function CustomerProfile() {
   // ========================
   // LOGOUT
   // ========================
-  const handleLogout = () => {
-    auth.signOut();
+  const handleLogout = async () => {
+    try {
+      // Clear local storage
+      await AsyncStorage.removeItem(`user_${user.uid}`);
+      await AsyncStorage.removeItem("role");
+
+      // Sign out
+      await auth.signOut();
+    } catch (error) {
+      console.log("Logout error:", error);
+      Alert.alert("Error", "Logout failed");
+    }
   };
 
   if (loading) {

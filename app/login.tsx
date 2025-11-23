@@ -3,6 +3,8 @@ import { useRouter } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +13,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Image,
 } from "react-native";
 import { auth, db } from "../firebaseConfig";
 
@@ -19,65 +22,67 @@ export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [userType, setUserType] = useState<"customer" | "provider" | "">("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password || !userType) {
-      Alert.alert("Error", "Please fill all fields and select user type");
+  if (!email || !password) {
+    Alert.alert("Error", "Please fill all fields");
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    // 1️⃣ Log in with Firebase
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // 2️⃣ Fetch user data from Firestore
+    const userRef = doc(db, "users", user.uid); // your Firestore structure
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      Alert.alert("Error", "User data not found in Firestore");
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+    const userData = userSnap.data();
+    const role = userData.role; // "customer" or "provider"
+    const isProfileComplete = userData.isProfileComplete;
 
-      const collectionName = userType === "customer" ? "customers" : "ServiceProviders";
-      const userDocRef = doc(db, collectionName, user.uid);
-      const userDocSnap = await getDoc(userDocRef);
+    // 3️⃣ Save locally for Auto Login
+    await AsyncStorage.setItem("role", role);
+    await AsyncStorage.setItem("isProfileComplete", String(isProfileComplete));
+    await AsyncStorage.setItem("userId", user.uid);
 
-      setLoading(false);
-
-      if (!userDocSnap.exists()) {
-        Alert.alert("Error", `${userType === "customer" ? "Customer" : "Provider"} data not found`);
-        return;
-      }
-
-      if (userType === "customer") {
-        router.replace("./customer/dashboard");
-      } else {
-        router.replace("./service_provider/dashboard");
-      }
-    } catch (error) {
-      setLoading(false);
-      console.error("Login error:", error);
-      Alert.alert("Login Error", (error as Error).message);
+    // 4️⃣ Redirect based on role
+    if (role === "customer") {
+      router.replace("/customer/dashboard");
+    } else {
+      router.replace("/service_provider/dashboard");
     }
-  };
+
+  } catch (error) {
+    Alert.alert("Login Error", error.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Logo Section */}
-      {/* <Image
-        source={require("../assets/fixian_logo.png")} // 🔹 use your uploaded logo here
-        style={styles.logo}
-        resizeMode="contain"
-      /> */}
+      {/* Logo */}
+      
 
-      {/* Welcome Text */}
       <Text style={styles.title}>Fixian.</Text>
+      <Text style={styles.sologran}>An On Demand Service Booking Platform</Text>
       <Text style={styles.subtitle}>Welcome Back!</Text>
-      <Text style={styles.description}>
-        Login your account using email{"\n"}and password or social media
-      </Text>
 
-      {/* Login Card */}
       <View style={styles.card}>
-        {/* Email Input */}
         <TextInput
           placeholder="Email"
-          placeholderTextColor="#888"
+          placeholderTextColor="#666"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -85,56 +90,17 @@ export default function LoginScreen() {
           style={styles.input}
         />
 
-        {/* Password Input */}
         <TextInput
           placeholder="Password"
-          placeholderTextColor="#888"
+          placeholderTextColor="#666"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
           style={styles.input}
         />
 
-        {/* User Type Buttons */}
-        <View style={styles.userTypeContainer}>
-          <TouchableOpacity
-            onPress={() => setUserType("customer")}
-            style={[
-              styles.userTypeButton,
-              userType === "customer" && styles.userTypeSelected,
-            ]}
-          >
-            <Text
-              style={[
-                styles.userTypeText,
-                userType === "customer" && styles.userTypeTextSelected,
-              ]}
-            >
-              Customer
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setUserType("provider")}
-            style={[
-              styles.userTypeButton,
-              userType === "provider" && styles.userTypeSelected,
-            ]}
-          >
-            <Text
-              style={[
-                styles.userTypeText,
-                userType === "provider" && styles.userTypeTextSelected,
-              ]}
-            >
-              Service Provider
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Login Button */}
         <TouchableOpacity
-          style={[styles.loginButton, loading && { backgroundColor: "#ccc" }]}
+          style={[styles.loginButton, loading && { opacity: 0.5 }]}
           onPress={handleLogin}
           disabled={loading}
         >
@@ -143,22 +109,20 @@ export default function LoginScreen() {
           ) : (
             <>
               <Text style={styles.loginButtonText}>Login</Text>
-              <Ionicons name="arrow-forward" size={18} color="#000" style={{ marginLeft: 8 }} />
+              <Ionicons
+                name="arrow-forward"
+                size={18}
+                color="#000"
+                style={{ marginLeft: 6 }}
+              />
             </>
           )}
         </TouchableOpacity>
 
-        {/* Google Sign-In */}
-        <TouchableOpacity style={styles.googleButton} onPress={() => console.log("Google login")}>
-          <Ionicons name="logo-google" size={20} color="#DB4437" />
-          <Text style={styles.googleText}>Sign in with Google</Text>
-        </TouchableOpacity>
-
-        {/* Signup Link */}
-        <TouchableOpacity onPress={() => router.push("/signup")} style={styles.signupContainer}>
+        {/* Signup */}
+        <TouchableOpacity onPress={() => router.push("/signup")}>
           <Text style={styles.signupText}>
-            Don’t have an account?{" "}
-            <Text style={styles.signupLink}>Sign up</Text>
+            Don't have an account? <Text style={styles.signupLink}>Sign up</Text>
           </Text>
         </TouchableOpacity>
       </View>
@@ -171,89 +135,48 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     backgroundColor: "#fff",
     alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 24,
-    paddingVertical: 40,
+    paddingTop: 80,
   },
-  logo: {
-    width: 160,
-    height: 70,
-    marginBottom: 10,
-  },
+
   title: {
-    fontSize: 36,
-    color: "#007BFF",
+    fontSize: 70,
     fontWeight: "bold",
+    color: "#007BFF",
+  },
+  sologran: {
+    fontSize: 16,
+    color: "#555",
+    marginBottom: 60,
   },
   subtitle: {
-    fontSize: 22,
-    color: "#000",
-    fontWeight: "600",
-    marginTop: 5,
-  },
-  description: {
-    textAlign: "center",
-    color: "#777",
-    marginBottom: 24,
-    marginTop: 6,
-    fontSize: 14,
+    fontSize: 18,
+    color: "#333",
+    marginBottom: 30,
   },
   card: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 20,
-    padding: 24,
     width: "100%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
+    backgroundColor: "#F5F6F7",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 3,
   },
   input: {
     backgroundColor: "#fff",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#ddd",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    padding: 14,
     fontSize: 16,
-    color: "#000",
     marginBottom: 16,
-  },
-  userTypeContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  userTypeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    alignItems: "center",
-    marginHorizontal: 5,
-  },
-  userTypeSelected: {
-    backgroundColor: "#007BFF",
-    borderColor: "#007BFF",
-  },
-  userTypeText: {
-    fontSize: 15,
-    color: "#555",
-    fontWeight: "500",
-  },
-  userTypeTextSelected: {
-    color: "#fff",
-    fontWeight: "600",
   },
   loginButton: {
     flexDirection: "row",
     backgroundColor: "#007BFF",
     borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
+    padding: 14,
     justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
   },
   loginButtonText: {
@@ -261,28 +184,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 16,
   },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-  googleText: {
-    marginLeft: 8,
-    color: "#000",
-    fontWeight: "500",
-  },
-  signupContainer: {
-    alignItems: "center",
-    marginTop: 8,
-  },
   signupText: {
+    textAlign: "center",
     color: "#777",
-    fontSize: 14,
   },
   signupLink: {
     color: "#007BFF",

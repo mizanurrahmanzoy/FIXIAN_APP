@@ -1,134 +1,186 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useRef, useState } from "react";
+import PagerView from "react-native-pager-view";
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function Home() {
   const router = useRouter();
+  const pagerRef = useRef<React.ElementRef<typeof PagerView>>(null);
+  const [page, setPage] = useState(0);
+
+  // Slide to next screen
+  const goToNext = () => {
+    pagerRef.current?.setPage(1);
+  };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Welcome Screen */}
-      <View style={styles.welcomeSection}>
-        <Text style={styles.title}>Fixian</Text>
-        <Text style={styles.subtitle}>
-          An Intelligent Service Booking{"\n"}and Management System
-        </Text>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => router.push("./login")}
-        >
-          <Text style={styles.primaryButtonText}>Get Started</Text>
-          <Ionicons name="arrow-forward" size={20} color="black" style={styles.iconRight} />
-        </TouchableOpacity>
+    <View style={{ flex: 1 }}>
+      {/* Dot Indicators */}
+      <View style={styles.dotContainer}>
+        <View style={[styles.dot, page === 0 && styles.activeDot]} />
+        <View style={[styles.dot, page === 1 && styles.activeDot]} />
       </View>
 
-      {/* Mission & Vision Screen */}
-      <View style={styles.missionSection}>
-        <Text style={styles.sectionTitle}>
-          Connecting You to{"\n"}Trusted Experts
-        </Text>
-
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: "https://via.placeholder.com/300x200.png" }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-          <Text style={styles.imageLabel}>Expert Service</Text>
-        </View>
-
-        <Text style={styles.description}>
-          At <Text style={styles.boldText}>Fixian</Text>, we believe everyone deserves reliable,
-          professional service. Our intelligent platform connects you with verified technicians who
-          can handle everything from AC repairs to computer fixes and automotive services.
-        </Text>
-
-        {/* Features List */}
-        <View style={styles.featureItem}>
-          <Ionicons name="checkmark-circle" size={20} color="white" style={styles.featureIcon} />
-          <Text style={styles.featureText}>
-            <Text style={styles.featureTitle}>Expert Technicians{"\n"}</Text>
-            Verified professionals with proven track records
+      <PagerView
+        style={styles.pager}
+        initialPage={0}
+        onPageSelected={(e) => setPage(e.nativeEvent.position)}
+        ref={pagerRef}
+      >
+        {/* SLIDE 1 (White) */}
+        <View key="1" style={[styles.page, styles.whiteBackground]}>
+          <Text style={styles.titleBlack}>Fixian</Text>
+          <Text style={styles.subtitleBlack}>
+            An Intelligent Service Booking{"\n"}and Management System
           </Text>
+
+          <TouchableOpacity
+            style={styles.primaryButtonBlack}
+            onPress={goToNext}
+          >
+            <Text style={styles.primaryButtonTextBlack}>Start</Text>
+            <Ionicons name="arrow-forward" size={20} color="white" style={styles.iconRight} />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.featureItem}>
-          <Ionicons name="time" size={20} color="white" style={styles.featureIcon} />
-          <Text style={styles.featureText}>
-            <Text style={styles.featureTitle}>Quick Booking{"\n"}</Text>
-            Schedule services that fit your timeline
+        {/* SLIDE 2 (Now White Theme) */}
+        <View key="2" style={[styles.page, styles.whiteBackground]}>
+          <Text style={styles.sectionTitleBlack}>
+            Connecting You to{"\n"}Trusted Experts
           </Text>
-        </View>
 
-        <View style={styles.featureItem}>
-          <Ionicons name="shield-checkmark" size={20} color="white" style={styles.featureIcon} />
-          <Text style={styles.featureText}>
-            <Text style={styles.featureTitle}>Guaranteed Quality{"\n"}</Text>
-            Protected service with satisfaction guarantee
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: "https://via.placeholder.com/300x200.png" }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+            <Text style={styles.imageLabelWhite}>Expert Service</Text>
+          </View>
+
+          <Text style={styles.descriptionBlack}>
+            At <Text style={styles.boldBlack}>Fixian</Text>, we believe everyone deserves reliable,
+            professional service. Our intelligent platform connects you with verified technicians who
+            can handle everything from AC repairs to computer fixes and automotive services.
           </Text>
-        </View>
 
-        {/* Start Journey Button */}
-        <TouchableOpacity style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>Start Your Journey</Text>
-          <Ionicons name="arrow-forward" size={20} color="black" style={styles.iconRight} />
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          {/* Features */}
+          <View style={styles.featureItem}>
+            <Ionicons name="checkmark-circle" size={20} color="#000" style={styles.featureIcon} />
+            <Text style={styles.featureTextBlack}>
+              <Text style={styles.featureTitleBlack}>Expert Technicians{"\n"}</Text>
+              Verified professionals with proven track records
+            </Text>
+          </View>
+
+          <View style={styles.featureItem}>
+            <Ionicons name="time" size={20} color="#000" style={styles.featureIcon} />
+            <Text style={styles.featureTextBlack}>
+              <Text style={styles.featureTitleBlack}>Quick Booking{"\n"}</Text>
+              Schedule services that fit your timeline
+            </Text>
+          </View>
+
+          <View style={styles.featureItem}>
+            <Ionicons name="shield-checkmark" size={20} color="#000" style={styles.featureIcon} />
+            <Text style={styles.featureTextBlack}>
+              <Text style={styles.featureTitleBlack}>Guaranteed Quality{"\n"}</Text>
+              Protected service with satisfaction guarantee
+            </Text>
+          </View>
+
+          {/* Get Started Button */}
+          <TouchableOpacity
+            style={styles.secondaryButtonBlack}
+            onPress={() => router.push("./login")}
+          >
+            <Text style={styles.secondaryButtonTextBlack}>Get Started</Text>
+            <Ionicons name="arrow-forward" size={20} color="white" style={styles.iconRight} />
+          </TouchableOpacity>
+        </View>
+      </PagerView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  pager: {
     flex: 1,
-    backgroundColor: "#000",
   },
-  welcomeSection: {
+  page: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    height: 700,
-    backgroundColor: "#000",
     paddingHorizontal: 24,
+    justifyContent: "center",
   },
-  title: {
-    color: "#fff",
+
+  /* DOT INDICATORS */
+  dotContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+    marginBottom: 10,
+    position: "absolute",
+    bottom: 0,
+    width: "100%",
+    zIndex: 1,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    marginHorizontal: 5,
+    borderRadius: 50,
+    backgroundColor: "#ccc",
+  },
+  activeDot: {
+    backgroundColor: "#000",
+    width: 12,
+    height: 12,
+  },
+
+  /* WHITE THEME FOR BOTH SCREENS */
+  whiteBackground: {
+    backgroundColor: "#fff",
+  },
+
+  /* Slide 1 */
+  titleBlack: {
+    color: "#000",
     fontSize: 36,
     fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 8,
   },
-  subtitle: {
-    color: "#ccc",
+  subtitleBlack: {
+    color: "#444",
+    fontSize: 16,
     textAlign: "center",
     marginBottom: 24,
-    fontSize: 16,
-    lineHeight: 22,
   },
-  primaryButton: {
-    backgroundColor: "#fff",
+  primaryButtonBlack: {
+    backgroundColor: "#000",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 9999,
     flexDirection: "row",
+    alignSelf: "center",
     alignItems: "center",
   },
-  primaryButtonText: {
-    color: "#000",
+  primaryButtonTextBlack: {
+    color: "#fff",
     fontWeight: "600",
     fontSize: 16,
   },
-  iconRight: {
-    marginLeft: 8,
-  },
-  missionSection: {
-    flex: 1,
-    backgroundColor: "#000",
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  sectionTitle: {
-    color: "#fff",
+
+  /* Slide 2 */
+  sectionTitleBlack: {
+    color: "#000",
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 24,
@@ -141,27 +193,30 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: 12,
   },
-  imageLabel: {
+  imageLabelWhite: {
     position: "absolute",
     top: 8,
     left: 8,
-    backgroundColor: "#fff",
+    backgroundColor: "#000",
+    color: "#fff",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 9999,
     fontSize: 12,
     fontWeight: "600",
   },
-  description: {
-    color: "#ccc",
+
+  descriptionBlack: {
+    color: "#444",
     marginBottom: 32,
     lineHeight: 22,
     fontSize: 15,
   },
-  boldText: {
-    color: "#fff",
+  boldBlack: {
+    color: "#000",
     fontWeight: "bold",
   },
+
   featureItem: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -170,27 +225,34 @@ const styles = StyleSheet.create({
   featureIcon: {
     marginRight: 8,
   },
-  featureText: {
-    color: "#ccc",
+  featureTextBlack: {
+    color: "#444",
     fontSize: 14,
     flex: 1,
   },
-  featureTitle: {
-    color: "#fff",
+  featureTitleBlack: {
+    color: "#000",
     fontWeight: "600",
   },
-  secondaryButton: {
-    backgroundColor: "#fff",
+
+  /* Get Started Button (Slide 2) */
+  secondaryButtonBlack: {
+    backgroundColor: "#000",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 9999,
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    marginTop: 20,
   },
-  secondaryButtonText: {
-    color: "#000",
+  secondaryButtonTextBlack: {
+    color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+  },
+
+  iconRight: {
+    marginLeft: 8,
   },
 });

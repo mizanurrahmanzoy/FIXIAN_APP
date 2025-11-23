@@ -1,4 +1,3 @@
-// app/customer/CustomerDashboard.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -8,14 +7,15 @@ import {
   ScrollView,
   Image,
   FlatList,
-  Alert,
+  Modal,
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "../../firebaseConfig";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, doc, getDoc } from "firebase/firestore";
 import BottomNav from "./BottomNav";
 import { StatusBar } from "expo-status-bar";
 
@@ -28,28 +28,38 @@ const categories = [
   { name: "Cleaner", icon: require("../../assets/cleaner.png") },
 ];
 
-const bestServices = [
-  {
-    name: "Complete electric supply wiring",
-    price: 180,
-    reviews: 130,
-    provider: "Mizanur Rahman",
-    image: require("../../assets/service1.jpg"),
-  },
-  {
-    name: "AC Installation & Repair",
-    price: 120,
-    reviews: 80,
-    provider: "Nadia Akter",
-    image: require("../../assets/service2.jpg"),
-  },
-];
-
 export default function CustomerDashboard() {
   const router = useRouter();
   const [jobs, setJobs] = useState<any[]>([]);
+  const [userData, setUserData] = useState<any>(null);
 
-  // Fetch jobs from Firestore
+  // Search states
+  const [searchModal, setSearchModal] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  // ---------------------
+  // FETCH USER DATA
+  // ---------------------
+  const loadUser = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId"); 
+      if (!userId) return;
+
+      const userRef = doc(db, "Users", userId);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        setUserData(userSnap.data());
+      }
+    } catch (error) {
+      console.log("User load error:", error);
+    }
+  };
+
+  // ---------------------
+  // FETCH JOBS
+  // ---------------------
   const fetchJobs = async () => {
     try {
       const q = query(collection(db, "Jobs"), orderBy("createdAt", "desc"));
@@ -66,129 +76,168 @@ export default function CustomerDashboard() {
 
   useEffect(() => {
     fetchJobs();
+    loadUser();
   }, []);
 
-  const handleBook = (job: any) => {
-    Alert.alert("Booking Confirmed", `You booked ${job.title}`);
+  // ---------------------
+  // LIMIT WORDS
+  // ---------------------
+  const trimLocation = (text: string) => {
+    const words = text.split(" ");
+    return words.length > 4 ? words.slice(0, 4).join(" ") + "..." : text;
+  };
+
+  // ---------------------
+  // SEARCH FUNCTION
+  // ---------------------
+  const handleSearch = (text: string) => {
+    setSearchText(text);
+
+    if (text.trim() === "") {
+      setSearchResults([]);
+      return;
+    }
+
+    const filtered = [
+      ...categories.filter((item) =>
+        item.name.toLowerCase().includes(text.toLowerCase())
+      ),
+      ...jobs.filter((job) =>
+        job.title.toLowerCase().includes(text.toLowerCase())
+      ),
+    ];
+
+    setSearchResults(filtered);
+    setSearchModal(true);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" backgroundColor="#fff" />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.locationContainer}>
-            <Text style={styles.locationLabel}>Service Area: </Text>
-            <Text style={styles.locationText}>Nabinagar, Savar, Dhaka</Text>
-            <Ionicons name="chevron-down" size={20} color="black" />
-          </TouchableOpacity>
+      {/* ------------------ HEADER ------------------ */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.username}>
+            {userData?.name || "Loading..."}
+          </Text>
 
-          <TouchableOpacity>
-            <Ionicons name="cart" size={28} color="black" />
-          </TouchableOpacity>
+          <Text style={styles.locationText}>
+            {trimLocation(userData?.location || "No location found")}
+          </Text>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="gray" />
-          <TextInput placeholder="Search" style={styles.searchInput} />
-        </View>
+        <TouchableOpacity onPress={() => router.push("/customer/orders")}>
+          <Ionicons name="cart" size={28} color="black" />
+        </TouchableOpacity>
+      </View>
 
-        {/* Categories */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>All Categories</Text>
-          <TouchableOpacity>
-            <Text style={styles.linkText}>See All</Text>
-          </TouchableOpacity>
-        </View>
+      {/* ------------------ SEARCH BAR ------------------ */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="gray" />
+        <TextInput
+          placeholder="Search services..."
+          placeholderTextColor="#555"
+          style={styles.searchInput}
+          value={searchText}
+          onChangeText={handleSearch}
+        />
+      </View>
 
+      {/* ------------------ SEARCH POPUP ------------------ */}
+      <Modal visible={searchModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Search Results</Text>
+
+            {searchResults.length === 0 ? (
+              <Text style={{ textAlign: "center", color: "#555" }}>
+                No results found.
+              </Text>
+            ) : (
+              <FlatList
+                data={searchResults}
+                keyExtractor={(item, index) => index.toString()}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.resultItem}
+                    onPress={() => {
+                      if (item.title) {
+                        router.push({
+                          pathname: "/customer/job_details",
+                          params: { id: item.id },
+                        });
+                      }
+                      setSearchModal(false);
+                    }}
+                  >
+                    <Text style={styles.resultText}>
+                      {item.name || item.title}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setSearchModal(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ------------------ SCROLL SECTIONS ------------------ */}
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* CATEGORIES */}
+        <Text style={styles.sectionTitle}>Categories</Text>
         <FlatList
           data={categories}
-          keyExtractor={(item) => item.name}
           horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
+          keyExtractor={(item) => item.name}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.categoryCard}>
+            <View style={styles.categoryCard}>
               <Image source={item.icon} style={styles.categoryIcon} />
               <Text style={styles.categoryText}>{item.name}</Text>
-            </TouchableOpacity>
-          )}
-        />
-
-        {/* Best Services */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Best Services</Text>
-          <TouchableOpacity>
-            <Text style={styles.linkText}>See All</Text>
-          </TouchableOpacity>
-        </View>
-
-        <FlatList
-          data={bestServices}
-          keyExtractor={(item) => item.name}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <View style={styles.serviceCard}>
-              <Image source={item.image} style={styles.serviceImage} />
-              <View style={styles.serviceInfo}>
-                <Text style={styles.serviceName}>{item.name}</Text>
-                <Text style={styles.providerText}>by {item.provider}</Text>
-                <Text style={styles.reviewsText}>
-                  {"⭐".repeat(Math.round(item.reviews / 30))} ({item.reviews} Reviews)
-                </Text>
-                <View style={styles.serviceFooter}>
-                  <Text style={styles.priceText}>৳{item.price}</Text>
-                  <TouchableOpacity style={styles.addButton}>
-                    <Text style={styles.addText}>Add</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
             </View>
           )}
         />
 
-        {/* Available Jobs */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Available Jobs</Text>
-          <TouchableOpacity onPress={() => router.push("./all_jobs")}>
-            <Text style={styles.linkText}>See All</Text>
-          </TouchableOpacity>
-        </View>
+        {/* JOBS */}
+        {/* ------------------ JOBS ------------------ */}
+<View style={{ flexDirection: "row", justifyContent: "space-between", marginHorizontal: 16, marginTop: 10 }}>
+  <Text style={styles.sectionTitle}>Available Jobs</Text>
 
-        <FlatList
-          data={jobs}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <View style={styles.jobCard}>
-              <Text style={styles.jobTitle}>{item.title}</Text>
-              <Text style={styles.jobDescription}>{item.description}</Text>
-              <Text style={styles.jobDetail}>💰 {item.price} BDT</Text>
-              <Text style={styles.jobDetail}>📍 {item.location}</Text>
-              <Text style={styles.jobDetail}>📂 {item.category}</Text>
-              <Text style={styles.jobDetail}>👤 {item.name}</Text>
+  <TouchableOpacity onPress={() => router.push("/customer/all_jobs")}>
+    <Text style={{ color: "#007BFF", fontWeight: "600", fontSize: 14 }}>See All</Text>
+  </TouchableOpacity>
+</View>
 
-              <TouchableOpacity
-                onPress={() => handleBook(item)}
-                style={styles.bookButton}
-              >
-                <Text style={styles.bookText}>Book</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        />
+<FlatList
+  data={jobs}
+  horizontal
+  keyExtractor={(item) => item.id}
+  renderItem={({ item }) => (
+    <TouchableOpacity
+      style={styles.jobCard}
+      onPress={() =>
+        router.push({
+          pathname: "/customer/ser_details",
+          params: { id: item.id },
+        })
+      }
+    >
+      <Text style={styles.jobTitle}>{item.title}</Text>
+      <Text style={styles.jobLocation}>{item.location}</Text>
+      <Text style={styles.jobBudget}>💰 {item.price} BDT</Text>
+    </TouchableOpacity>
+  )}
+/>
+
       </ScrollView>
 
-      {/* Bottom Navigation */}
       <BottomNav activeTab="dashboard" />
     </SafeAreaView>
   );
@@ -196,81 +245,72 @@ export default function CustomerDashboard() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#fff" },
-  scrollView: { flex: 1, backgroundColor: "#fff" },
-  scrollContent: { paddingBottom: 100, paddingHorizontal: 16 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    marginTop: 8,
+    padding: 16,
   },
-  locationContainer: { flexDirection: "row", alignItems: "center" },
-  locationLabel: { color: "#555", fontWeight: "600" },
-  locationText: { color: "#000", fontWeight: "700" },
+  username: { fontSize: 20, fontWeight: "700", color: "#000" },
+  locationText: { color: "#777", maxWidth: 200 },
   searchContainer: {
     flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#f2f2f2",
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 20,
-  },
-  searchInput: { flex: 1, marginLeft: 8, color: "#000" },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    margin: 16,
+    borderRadius: 10,
+    padding: 10,
     alignItems: "center",
+  },
+  searchInput: { marginLeft: 10, flex: 1, color: "#000" },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginLeft: 16,
     marginBottom: 8,
   },
-  sectionTitle: { fontSize: 18, fontWeight: "700", color: "#000" },
-  linkText: { color: "#007bff", fontWeight: "600" },
-  horizontalList: { paddingBottom: 10 },
   categoryCard: {
+    backgroundColor: "#eee",
+    marginHorizontal: 10,
+    borderRadius: 10,
+    padding: 15,
     alignItems: "center",
-    backgroundColor: "#f2f2f2",
-    borderRadius: 10,
-    padding: 12,
-    marginRight: 12,
-    width: 90,
   },
-  categoryIcon: { width: 40, height: 40, marginBottom: 6 },
-  categoryText: { textAlign: "center", color: "#333", fontSize: 12 },
-  serviceCard: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    marginRight: 12,
-    width: 260,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-  },
-  serviceImage: { width: "100%", height: 120, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
-  serviceInfo: { padding: 10 },
-  serviceName: { fontWeight: "700", color: "#000", marginBottom: 4 },
-  providerText: { color: "#666", fontSize: 13 },
-  reviewsText: { color: "#f5a623", fontSize: 13, marginTop: 4 },
-  serviceFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
-  priceText: { fontWeight: "700", color: "#000" },
-  addButton: { backgroundColor: "#007bff", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
-  addText: { color: "#fff", fontWeight: "600" },
+  categoryIcon: { width: 40, height: 40 },
+  categoryText: { marginTop: 5 },
   jobCard: {
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#f8f8f8",
+    marginHorizontal: 10,
+    padding: 15,
     borderRadius: 10,
-    padding: 12,
-    marginRight: 12,
-    width: 260,
+    width: 230,
   },
-  jobTitle: { fontWeight: "700", fontSize: 16, color: "#000" },
-  jobDescription: { color: "#555", marginVertical: 4 },
-  jobDetail: { fontSize: 13, color: "#333" },
-  bookButton: {
-    backgroundColor: "#28a745",
+  jobTitle: { fontSize: 16, fontWeight: "700" },
+  jobLocation: { color: "#777", marginVertical: 5 },
+  jobBudget: { color: "#000", fontWeight: "500" },
+
+  // MODAL
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalBox: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 12,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 10 },
+  resultItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  resultText: { fontSize: 16 },
+  closeButton: {
+    backgroundColor: "#007bff",
+    padding: 12,
     borderRadius: 8,
-    paddingVertical: 8,
     marginTop: 10,
   },
-  bookText: { color: "#fff", textAlign: "center", fontWeight: "700" },
+  closeButtonText: { color: "#fff", textAlign: "center", fontWeight: "600" },
 });

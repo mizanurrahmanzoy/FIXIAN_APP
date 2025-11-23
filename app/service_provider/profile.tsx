@@ -1,26 +1,27 @@
 // app/provider/profile.tsx
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  Image,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
+  View,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth, db } from "../../firebaseConfig";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { CLOUDINARY_UPLOAD_URL, UPLOAD_PRESET } from "../utils/cloudinary";
+import { CLOUDINARY_UPLOAD_URL, UPLOAD_PRESET } from "../../utils/cloudinary";
 
 export default function ProviderProfile() {
   const router = useRouter();
   const user = auth.currentUser;
-  
+
   if (!user) {
     return (
       <View style={styles.center}>
@@ -28,7 +29,7 @@ export default function ProviderProfile() {
       </View>
     );
   }
-  
+
   const providerRef = doc(db, "ServiceProviders", user.uid);
 
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,7 @@ export default function ProviderProfile() {
   const [phone, setPhone] = useState("");
   const [experience, setExperience] = useState("");
   const [serviceCategory, setServiceCategory] = useState("");
+  const [email, setEmail] = useState(user.email || "");
   const [location, setLocation] = useState<any>(null);
 
   const serviceCategories = ["Electrician", "Plumber", "Technician", "Painter"];
@@ -50,6 +52,19 @@ export default function ProviderProfile() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
+        // Try to load from AsyncStorage first
+        const stored = await AsyncStorage.getItem(`providerProfile_${user.uid}`);
+        if (stored) {
+          const data = JSON.parse(stored);
+          setProfileImage(data.profileImage);
+          setName(data.name);
+          setPhone(data.phone);
+          setExperience(data.experience);
+          setServiceCategory(data.serviceCategory);
+          setLocation(data.location);
+        }
+
+        // Then load from Firestore
         const snap = await getDoc(providerRef);
         if (snap.exists()) {
           const data = snap.data();
@@ -59,6 +74,9 @@ export default function ProviderProfile() {
           setExperience(data.experience || "");
           setServiceCategory(data.serviceCategory || "");
           setLocation(data.location || null);
+
+          // Save to AsyncStorage
+          await AsyncStorage.setItem(`providerProfile_${user.uid}`, JSON.stringify(data));
         }
       } catch (e) {
         console.log("Error loading profile:", e);
@@ -72,18 +90,17 @@ export default function ProviderProfile() {
   // PICK IMAGE
   // ========================
   const pickImage = async () => {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
-  
-      if (!result.canceled) {
-        uploadImage(result.assets[0].uri);
-      }
-    };
-  
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      uploadImage(result.assets[0].uri);
+    }
+  };
 
   // ========================
   // UPLOAD IMAGE TO CLOUDINARY
@@ -134,7 +151,7 @@ export default function ProviderProfile() {
     }
     setLoading(true);
     try {
-      await updateDoc(providerRef, {
+      const updatedData = {
         name,
         phone,
         experience,
@@ -142,7 +159,13 @@ export default function ProviderProfile() {
         location,
         profileImage: profileImage || "",
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      await updateDoc(providerRef, updatedData);
+
+      // Save locally
+      await AsyncStorage.setItem(`providerProfile_${user.uid}`, JSON.stringify({ ...updatedData, email }));
+
       Alert.alert("Success", "Profile updated!");
       setEditMode(false);
     } catch (err) {
@@ -201,6 +224,10 @@ export default function ProviderProfile() {
       <Text style={styles.label}>Name</Text>
       <TextInput style={styles.input} value={name} onChangeText={setName} editable={editMode} />
 
+      {/* EMAIL */}
+      <Text style={styles.label}>Email</Text>
+      <TextInput style={[styles.input, { backgroundColor: "#eee" }]} value={email} editable={false} />
+
       {/* PHONE */}
       <Text style={styles.label}>Phone</Text>
       <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" editable={editMode} />
@@ -243,7 +270,7 @@ export default function ProviderProfile() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20 },
+  container: { padding: 20, backgroundColor: "#fff", flexGrow: 1, borderRadius: 12, margin: 10 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   imageBox: { width: 140, height: 140, borderRadius: 100, backgroundColor: "#eee", justifyContent: "center", alignItems: "center", alignSelf: "center", marginBottom: 15 },
   image: { width: "100%", height: "100%", borderRadius: 100 },
